@@ -9,6 +9,7 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
+import org.json.JSONObject
 
 /**
  * Backup / restore through the Storage Access Framework. The user picks the destination
@@ -63,7 +64,7 @@ class FitBackupPlugin : Plugin() {
         if (call == null) return
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            call.resolve(JSObject().put("data", JSObject.NULL).put("name", JSObject.NULL)); return
+            call.resolve(JSObject().put("data", JSONObject.NULL).put("name", JSONObject.NULL)); return
         }
         try {
             val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }

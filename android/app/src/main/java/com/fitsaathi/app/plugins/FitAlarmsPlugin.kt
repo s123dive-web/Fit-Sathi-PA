@@ -38,7 +38,7 @@ class FitAlarmsPlugin : Plugin() {
 
     override fun load() {
         Notifications.ensureChannels(context)
-        receiver = object : BroadcastReceiver() {
+        val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
                 val json = intent.getStringExtra("json") ?: return
                 try {
@@ -47,7 +47,8 @@ class FitAlarmsPlugin : Plugin() {
                 } catch (_: Exception) {}
             }
         }
-        ContextCompat.registerReceiver(context, receiver, IntentFilter(PendingActionStore.BROADCAST), ContextCompat.RECEIVER_NOT_EXPORTED)
+        receiver = r
+        ContextCompat.registerReceiver(context, r, IntentFilter(PendingActionStore.BROADCAST), ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun handleOnDestroy() {

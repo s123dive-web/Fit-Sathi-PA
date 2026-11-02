@@ -1,6 +1,7 @@
 package com.fitsaathi.app.alarms
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -63,6 +64,7 @@ object Notifications {
         else -> CHANNEL_REMINDERS
     }
 
+    @SuppressLint("MissingPermission")
     fun showAlarm(ctx: Context, spec: AlarmSpec) {
         ensureChannels(ctx)
         if (!canPost(ctx)) return
@@ -90,6 +92,7 @@ object Notifications {
     }
 
     /** Ongoing, silent notification listing today's items with tick buttons for the first open ones. */
+    @SuppressLint("MissingPermission")
     fun refreshPinned(ctx: Context) {
         ensureChannels(ctx)
         val nm = NotificationManagerCompat.from(ctx)

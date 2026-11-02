@@ -20,6 +20,11 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    lint {
+        // Report everything but do not abort release builds on warnings-as-errors; see docs/SELF_CHECK_REPORT.md
+        abortOnError false
+        checkReleaseBuilds true
+    }
     buildTypes {
         release {
             minifyEnabled false
