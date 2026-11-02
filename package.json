@@ -1,0 +1,49 @@
+{
+  "name": "fitsaathi",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FitSaathi — offline-first personal fitness & habit assistant (Android, Capacitor)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open": "npx cap open android",
+    "android:assemble": "npm run cap:sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^6.0.2",
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/camera": "^6.1.2",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/filesystem": "^6.0.3",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/share": "^6.0.3",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "jeep-sqlite": "^2.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.3",
+    "sql.js": "1.11.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/sql.js": "^1.4.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

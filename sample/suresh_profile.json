@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "Suresh",
+  "age": 42,
+  "sex": "male",
+  "city": "Pune",
+  "height": { "value": 172, "unit": "cm" },
+  "currentWeightKg": 84,
+  "targetWeightKg": 74,
+  "activityLevel": "light",
+  "dietType": "non_vegetarian",
+  "fasting": { "enabled": true, "start": "20:00", "end": "12:00" },
+  "sleep": { "start": "22:30", "end": "06:00" },
+  "waterTargetMl": 3000,
+  "supplements": [
+    { "id": "sup_morning_juice", "name": "Morning juice", "dose": "1 glass (amla + wheatgrass)", "time": "06:40", "alarm": true },
+    { "id": "sup_capsule_afternoon", "name": "Capsule", "dose": "1 capsule after lunch", "time": "13:30", "alarm": true },
+    { "id": "sup_omega3", "name": "Omega-3", "dose": "1 softgel with dinner", "time": "19:30", "alarm": true }
+  ],
+  "workout": { "start": "06:00", "end": "06:45", "days": [1, 2, 3, 4, 5, 6] },
+  "appearanceGoals": "Lose belly fat, visible jawline, fit into 34-inch trousers, better posture.",
+  "photoConsent": true,
+  "nutritionTargets": { "kcal": 1800, "proteinG": 120 },
+  "preferences": {
+    "weightUnit": "kg",
+    "theme": "system",
+    "waterReminderIntervalMin": 90,
+    "habitReminderTime": "20:30",
+    "fastingNotifications": true,
+    "waterReminders": true
+  }
+}
