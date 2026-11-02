@@ -8,7 +8,10 @@ Nothing is hardcoded to a person. The owner's data is loaded through a profile J
 (`sample/suresh_profile.json`) validated against `src/schema/profile.schema.json`.
 
 Stack: **React 18 + Vite + TypeScript**, **Capacitor 6**, **@capacitor-community/sqlite**,
-**Tailwind CSS**, **Recharts**. No backend, no analytics, no cloud calls.
+**Tailwind CSS**, **Recharts**, **Zustand**, **date-fns**. No backend, no analytics, no cloud calls.
+
+Acceptance documents live in `docs/`: `REQUIREMENTS.md` (checklist), `SELF_CHECK_REPORT.md`,
+`ALARM_TEST.md`, `DEVIATIONS.md`.
 
 ---
 
@@ -17,7 +20,8 @@ Stack: **React 18 + Vite + TypeScript**, **Capacitor 6**, **@capacitor-community
 ```bash
 npm install
 npm run dev            # web preview at http://localhost:5173 (SQLite runs in-browser via jeep-sqlite)
-npm test               # vitest unit tests (logic layer)
+npm run check          # lint + typecheck + tests
+npm test               # vitest unit + component tests
 npm run build          # tsc + vite build → dist/
 npm run cap:sync       # build + copy web assets + sync native plugins into android/
 npm run cap:open       # open android/ in Android Studio
@@ -29,6 +33,15 @@ JDK 17, Gradle 8.2 (wrapper included). `minSdk` is 26 because of Health Connect.
 
 On first launch choose **Import profile JSON** (pick the file, or paste it) or **Fill manually**.
 
+### Importing a profile JSON
+1. Copy `sample/suresh_profile.json` to the phone (or any file following `src/schema/profile.schema.json`).
+2. Onboarding → *Import profile JSON* → *Choose file…* (or paste the JSON and *Validate pasted*).
+3. The file is validated against the schema; errors are listed per field. A field-by-field preview/diff is shown.
+4. Keep *Create habits from this profile* ticked to seed the `habits` list, then confirm.
+5. Later imports from Profile → *Import JSON…* show a diff against the current profile before overwriting.
+   Supplement ids are derived from name + time, so logs survive re-imports of the same file.
+6. Profile → *Export JSON* writes the current profile (including current habits) through the system file picker.
+
 ---
 
 ## Project layout
@@ -37,32 +50,38 @@ On first launch choose **Import profile JSON** (pick the file, or paste it) or *
 src/
   types.ts                 domain types
   schema/profile.schema.json   JSON Schema (draft-07) for the profile import/export
-  db/database.ts           SQLite connection + schema (web: jeep-sqlite + sql-wasm)
-  db/repos.ts              repositories: profile, habits, logs, water, weight, foods, meals, photos, steps, summaries, xp
-  logic/                   pure, unit-tested logic
+  db/database.ts           SQLite connection + migration runner (web: jeep-sqlite + sql-wasm)
+  db/migrations/           versioned SQL files (001_initial.sql) + backup migration hooks
+  db/repos.ts              repositories: profile, supplements, habits, logs, water, weight, foods, meals, photos, alarms, notification_log, steps, summaries, points
+  utils/                   pure, unit-tested logic
     habitStrength.ts       Loop algorithm (strength, streaks, completion %)
-    fasting.ts             fasting window state machine + "outside window" check
+    fasting.ts             eating-window state machine, "outside window" check, pre-close warning time
     projection.ts          7-day MA, OLS slope, ETA to target, chart series
     insights.ts            Daylio-style rule-based correlations (on-device)
     nutrition.ts           Mifflin-St Jeor BMR / TDEE / targets
-    profile.ts             validation (ajv), diff before overwrite, starter habits
-    xp.ts, dates.ts, schedule.ts, units.ts
-  data/indianFoods.ts      seed food DB (Maharashtrian staples)
+    profile.ts             validation (ajv), diff before overwrite, profile habits ↔ app habits
+    quotes.ts              motivational template engine + 14-day no-repeat rotation
+    crypto.ts              AES-256-GCM + PBKDF2 for backups
+    xp.ts, dates.ts (date-fns), schedule.ts, units.ts, haptics.ts, milestones.ts
+  data/indianFoods.ts      seed food DB (Maharashtrian staples); data/quotes.json (64 templates)
   services/                side-effecting orchestration
-    actions.ts             done/skip/miss, supplements, water, weight, meals (+XP)
-    sync.ts                builds the alarm set, pushes pinned notification + widget, consumes native actions
+    actions.ts             done/skip/miss, supplements, water, weight, meals (+XP, haptics, milestone confetti)
+    sync.ts                builds the alarm set (supplements, workout, habits, water, fasting, motivation), pushes pinned notification + widget, consumes native actions
     weekly.ts              auto weekly summary every closed week
     health.ts              Health Connect steps (read-only)
-    backup.ts              full-DB JSON backup/restore through the system file picker
+    backup.ts              encrypted backup/restore with schema-version check through the system file picker
     photos.ts              camera → encrypted private storage
   native/plugins.ts        Capacitor plugin contracts (FitAlarms, FitWidget, FitHealthConnect, FitSecurePhotos, FitBackup)
   native/web.ts            web fallbacks so `npm run dev` works in a browser
-  screens/                 Onboarding, Today, Habits, Food, Progress (+Photos), ProfileScreen
+  store/appStore.ts        Zustand store (revision counter, XP burst, confetti, toast)
+  i18n/en.json, index.ts   all UI strings; add hi.json / mr.json and register in LOCALES
+  screens/                 Onboarding, Today, Habits, Food, Progress (+Photos), ProfileScreen (settings)
   components/              UI primitives, HeatGrid, ProfileForm, ProfileImport
-  tests/                   vitest specs
+  tests/                   vitest unit specs + React Testing Library component tests
+docs/                      REQUIREMENTS.md, SELF_CHECK_REPORT.md, ALARM_TEST.md, DEVIATIONS.md
 android/app/src/main/java/com/fitsaathi/app/
   MainActivity.java        registers the custom plugins
-  alarms/                  AlarmSpec, AlarmScheduler (AlarmManager exact), receivers (fire / action / boot), Notifications, stores
+  alarms/                  AlarmSpec, AlarmScheduler (AlarmManager exact), receivers (fire / action / boot), Notifications, AlarmActivity (full-screen), stores
   plugins/                 the five Capacitor plugins (Kotlin)
   widget/HabitWidgetProvider.kt   AppWidget with one-tap ticks
   photos/                  (reserved)
@@ -80,9 +99,11 @@ sample/suresh_profile.json  prefilled sample profile
 | 3 | Habits: unlimited, daily / N×week / weekdays, Loop strength with gentle decay, heat-grid, streak/best/%, pinned notification + widget | `screens/Habits.tsx`, `logic/habitStrength.ts`, `android/.../Notifications.kt`, `widget/` |
 | 4 | Food: seeded Indian DB (jowar bhakri, chapati, poha, idli, dal, rice, sabzi, chicken curry, eggs, tea with sugar, coffee…), log by time, auto-flag outside fasting window, daily totals vs target, weekly protein average, custom foods | `screens/Food.tsx`, `data/indianFoods.ts`, `logic/nutrition.ts` |
 | 5 | Progress: weight line + 7-day MA + projection line with ETA, weekly summary card (auto every Sunday), rule-based insights, encrypted photos with before/now compare and timeline, future-look v1 text + v2 cloud toggle stub (default OFF) | `screens/Progress.tsx`, `logic/projection.ts`, `logic/insights.ts`, `services/weekly.ts`, `services/photos.ts`, `FitSecurePhotosPlugin.kt` |
-| 6 | Exact alarms (AlarmManager `setExactAndAllowWhileIdle` / `setAlarmClock`), `SCHEDULE_EXACT_ALARM` handling, reboot persistence, per-supplement alarms, habit reminders, water reminders in waking hours, fasting open/close, notification action buttons (Done / Skip / Snooze / +250 ml) | `services/sync.ts` (`buildAlarms`), `android/.../alarms/*` |
-| 7 | Backup/restore via the system document picker (user can choose Google Drive); no API keys, no OAuth, nothing uploaded by the app | `services/backup.ts`, `FitBackupPlugin.kt` |
-| 8 | Settings: theme, units, notification toggles, pinned notification, Health Connect connect, erase data | `screens/ProfileScreen.tsx` |
+| 6 | Exact alarms (AlarmManager `setExactAndAllowWhileIdle` / `setAlarmClock`), `SCHEDULE_EXACT_ALARM` handling, reboot + update persistence, per-supplement alarms, daily workout alarm, fasting warning 30 min before close, full-screen intent + sound + vibration, snooze 10 min, Done from the notification, 2×/day motivational messages from 64 templates rotating without repeats in 14 days, every channel toggleable | `services/sync.ts` (`buildAlarms`, `buildMotivationAlarms`), `utils/quotes.ts`, `android/.../alarms/*` |
+| 7 | Encrypted backup (AES-256-GCM, passphrase) via the system document picker (user can choose Google Drive); restore with schema-version check; no API keys, no OAuth, nothing uploaded by the app | `services/backup.ts`, `utils/crypto.ts`, `FitBackupPlugin.kt` |
+| 8 | Settings: theme, units, every notification channel, pinned notification, Drive toggle, Health Connect, erase data | `screens/ProfileScreen.tsx` |
+| 9 | Data model with created_at/updated_at on every table, versioned SQL migrations | `db/migrations/001_initial.sql`, `db/database.ts` |
+| 10 | TS strict, ESLint + Prettier, no `any`, Zustand, Recharts, date-fns, Vitest + RTL, folder layout | `eslint.config.js`, `.prettierrc`, `store/appStore.ts`, `tests/` |
 
 ---
 
@@ -104,7 +125,12 @@ average weekly weight change of each side is compared; shown only with ≥2 week
 activity factor, −500 kcal when losing / +300 when gaining, protein 1.6 g/kg of target weight.
 
 **XP.** Habit 10 (configurable per habit), supplement 5, water tap 1 (+10 at target), weight 5,
-meal 2, photo 15. Level `n` needs `50·n²` XP.
+meal 2, photo 15, +20 at streak milestones (7/21/30/60/90, with confetti). Level `n` needs `50·n²` XP.
+
+**Motivational messages.** `src/data/quotes.json` holds 64 templates (generic + "future-you"). On every app
+open / action, the next 14 days × configured times are planned as one-shot exact alarms; `notification_log`
+remembers which template each slot got so nothing repeats inside 14 days. Placeholders: `{name}`, `{streak}`,
+`{daysToTarget}`, `{kgLeft}`, `{bestStreak}`, `{weekCompletion}`, `{targetKg}`, `{eatStart}`.
 
 ---
 
@@ -128,9 +154,11 @@ download / file input. Health Connect reports `unsupported`.
 
 ## Profile JSON
 
-See `src/schema/profile.schema.json`. Times are `HH:MM` (24 h), weekdays are ISO (1 = Mon … 7 = Sun).
-`fasting.start` is when the fast begins (eating window closes); `fasting.end` is when eating resumes.
-Height is `{ value, unit: "cm" | "ft_in" }` (for `ft_in`, `value` is total inches).
+See `src/schema/profile.schema.json` and `sample/suresh_profile.json`. Times are `HH:MM` (24 h), workout /
+habit days are `mon`…`sun`. `fasting.eatStart` / `fasting.eatEnd` describe the eating window (fasting is the
+rest of the day). `user.heightCm` is always centimetres; the ft/in display is a preference. Supplements may omit
+`id` (derived from name + time). `habits[]` seeds the Habits screen; `typicalMeals` powers the "Your usual"
+chips in the food picker; `notifications` and `privacy` hold the channel toggles and consents.
 
 Export from Profile → *Export JSON*. Import from Profile → *Import JSON…*: the file is validated and a
 field-by-field diff is shown before anything is overwritten.
@@ -139,21 +167,24 @@ field-by-field diff is shown before anything is overwritten.
 
 ## Testing
 
-`npm test` runs 39 vitest specs covering strength/streak/completion maths, fasting window, projection,
-schema validation + diff + starter habits, alarm-set generation, dates, XP, nutrition and insights.
+`npm run check` runs ESLint, `tsc -b` and 57 Vitest specs: strength/streak/completion maths, fasting window,
+projection, schema validation + diff + habit seeding, alarm-set generation (06:40 / 13:55 / 17:45 / 05:30 /
+18:30), quote rotation, encrypted backup, dates, units, XP, nutrition, insights, plus React Testing Library
+component tests for Today and Onboarding.
 
 The web build was also driven end-to-end in headless Chromium (onboarding import → Today ticks →
 Habits → Food log → Progress → Profile → reload persistence) with no console errors.
 
-The Android project (Kotlin plugins, widget, receivers) must be compiled with the Android SDK in
-Android Studio; it is not compiled by `npm run build`.
+The Android project (Kotlin plugins, widget, receivers, full-screen alarm) must be compiled with the Android
+SDK in Android Studio; it is not compiled by `npm run build` and was not compiled in the environment that
+produced this repo (see `docs/DEVIATIONS.md`). Device checks are scripted in `docs/ALARM_TEST.md`.
 
 ---
 
 ## Privacy
 
 - All data in an on-device SQLite database. No accounts, no analytics, no network calls.
-- Backups are written only where the user points the system file picker.
+- Backups are AES-256-GCM encrypted with your passphrase and written only where you point the system file picker.
 - Progress photos are encrypted at rest and excluded from backups and Android auto-backup.
 - The v2 "AI future look" toggle is a stub that only records the preference and is clearly labelled as
   sending a photo to the cloud; no cloud call exists in v1.

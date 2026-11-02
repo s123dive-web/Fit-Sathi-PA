@@ -2,93 +2,78 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://fitsaathi.app/schema/profile.schema.json",
   "title": "FitSaathi Profile",
-  "description": "User profile for FitSaathi. Import this JSON on first launch or from the Profile screen. All values belong to the user; nothing is hardcoded in the app.",
+  "description": "User profile for FitSaathi. Import on first launch or from the Profile screen. All values belong to the user; nothing is hardcoded in the app.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "name",
-    "age",
-    "height",
-    "currentWeightKg",
-    "targetWeightKg",
-    "activityLevel",
-    "dietType",
-    "fasting",
-    "sleep",
-    "waterTargetMl",
-    "supplements",
-    "workout",
-    "appearanceGoals",
-    "photoConsent"
-  ],
+  "required": ["schemaVersion", "user", "fasting", "sleep", "water", "workout", "supplements", "habits", "notifications", "privacy"],
   "definitions": {
-    "hhmm": {
-      "type": "string",
-      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
-      "description": "24-hour time, HH:MM"
-    },
-    "weekday": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 7,
-      "description": "ISO weekday: 1 = Monday ... 7 = Sunday"
-    }
+    "hhmm": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "description": "24-hour time, HH:MM" },
+    "dayName": { "type": "string", "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }
   },
   "properties": {
     "schemaVersion": { "const": 1 },
-    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
-    "age": { "type": "integer", "minimum": 10, "maximum": 120 },
-    "sex": { "type": "string", "enum": ["male", "female", "other"] },
-    "city": { "type": "string", "maxLength": 80 },
-    "height": {
+    "user": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "unit"],
+      "required": ["name", "age", "heightCm", "currentWeightKg", "targetWeightKg", "activityLevel", "dietType", "appearanceGoals"],
       "properties": {
-        "value": { "type": "number", "exclusiveMinimum": 0, "description": "cm, or total inches when unit is ft_in" },
-        "unit": { "type": "string", "enum": ["cm", "ft_in"] }
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "age": { "type": "integer", "minimum": 10, "maximum": 120 },
+        "sex": { "type": "string", "enum": ["male", "female", "other"] },
+        "city": { "type": "string", "maxLength": 80 },
+        "heightCm": { "type": "number", "minimum": 100, "maximum": 250 },
+        "currentWeightKg": { "type": "number", "minimum": 20, "maximum": 400 },
+        "targetWeightKg": { "type": "number", "minimum": 20, "maximum": 400 },
+        "activityLevel": { "type": "string", "enum": ["sedentary", "light", "moderate", "active", "very_active"] },
+        "dietType": { "type": "string", "enum": ["veg", "egg", "non-veg", "vegan", "jain", "other"] },
+        "cuisine": { "type": "string", "maxLength": 80 },
+        "appearanceGoals": { "type": "string", "maxLength": 2000 }
       }
-    },
-    "currentWeightKg": { "type": "number", "minimum": 20, "maximum": 400 },
-    "targetWeightKg": { "type": "number", "minimum": 20, "maximum": 400 },
-    "activityLevel": {
-      "type": "string",
-      "enum": ["sedentary", "light", "moderate", "active", "very_active"]
-    },
-    "dietType": {
-      "type": "string",
-      "enum": ["vegetarian", "eggetarian", "non_vegetarian", "vegan", "jain", "other"]
     },
     "fasting": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "start", "end"],
+      "required": ["enabled", "eatStart", "eatEnd"],
       "properties": {
         "enabled": { "type": "boolean" },
-        "start": { "$ref": "#/definitions/hhmm", "description": "Fast begins (eating window closes)" },
-        "end": { "$ref": "#/definitions/hhmm", "description": "Fast ends (eating window opens)" }
+        "eatStart": { "$ref": "#/definitions/hhmm", "description": "Eating window opens (fast ends)" },
+        "eatEnd": { "$ref": "#/definitions/hhmm", "description": "Eating window closes (fast begins)" }
       }
     },
     "sleep": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["start", "end"],
+      "required": ["bedtime", "wake"],
+      "properties": { "bedtime": { "$ref": "#/definitions/hhmm" }, "wake": { "$ref": "#/definitions/hhmm" } }
+    },
+    "water": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetMl"],
+      "properties": { "targetMl": { "type": "integer", "minimum": 250, "maximum": 10000 } }
+    },
+    "workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "start", "end", "days", "alarm"],
       "properties": {
+        "enabled": { "type": "boolean" },
         "start": { "$ref": "#/definitions/hhmm" },
-        "end": { "$ref": "#/definitions/hhmm" }
+        "end": { "$ref": "#/definitions/hhmm" },
+        "days": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/dayName" } },
+        "location": { "type": "string", "maxLength": 80 },
+        "alarm": { "type": "boolean", "description": "Exact alarm at workout start on workout days" }
       }
     },
-    "waterTargetMl": { "type": "integer", "minimum": 250, "maximum": 10000 },
     "supplements": {
       "type": "array",
       "maxItems": 30,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "name", "dose", "time", "alarm"],
+        "required": ["name", "dose", "time", "alarm"],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1, "description": "Optional stable id; generated from name + time when absent" },
           "name": { "type": "string", "minLength": 1, "maxLength": 80 },
           "dose": { "type": "string", "maxLength": 80 },
           "time": { "$ref": "#/definitions/hhmm" },
@@ -96,22 +81,82 @@
         }
       }
     },
-    "workout": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["start", "end", "days"],
-      "properties": {
-        "start": { "$ref": "#/definitions/hhmm" },
-        "end": { "$ref": "#/definitions/hhmm" },
-        "days": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": { "$ref": "#/definitions/weekday" }
+    "habits": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "schedule"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "schedule": { "type": "string", "enum": ["daily", "weekly", "weekdays"] },
+          "targetPerWeek": { "type": "integer", "minimum": 1, "maximum": 7 },
+          "days": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/dayName" } },
+          "emoji": { "type": "string", "maxLength": 8 },
+          "reminder": { "$ref": "#/definitions/hhmm" }
         }
       }
     },
-    "appearanceGoals": { "type": "string", "maxLength": 2000 },
-    "photoConsent": { "type": "boolean" },
+    "typicalMeals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "breakfast": { "type": "array", "items": { "type": "string" } },
+        "lunch": { "type": "array", "items": { "type": "string" } },
+        "dinner": { "type": "array", "items": { "type": "string" } },
+        "snacks": { "type": "array", "items": { "type": "string" } },
+        "protein": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "chickenPerWeek": { "type": "number", "minimum": 0 },
+            "fishPerWeek": { "type": "number", "minimum": 0 },
+            "eggs": { "type": "string" }
+          }
+        },
+        "drinks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "teaWithSugarCups": { "type": "number", "minimum": 0 }, "coffeeCups": { "type": "number", "minimum": 0 } }
+        }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["motivational", "fastingWarningMinutesBefore"],
+      "properties": {
+        "motivational": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "times"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "times": { "type": "array", "maxItems": 6, "items": { "$ref": "#/definitions/hhmm" } }
+          }
+        },
+        "fastingWarningMinutesBefore": { "type": "integer", "minimum": 0, "maximum": 240 },
+        "supplementAlarms": { "type": "boolean" },
+        "workoutAlarm": { "type": "boolean" },
+        "habitReminders": { "type": "boolean" },
+        "eveningCheckIn": { "anyOf": [{ "$ref": "#/definitions/hhmm" }, { "type": "null" }] },
+        "waterReminders": { "type": "boolean" },
+        "waterReminderIntervalMin": { "type": "integer", "minimum": 15, "maximum": 360 },
+        "fastingWindow": { "type": "boolean" },
+        "pinnedChecklist": { "type": "boolean" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["photoConsent", "driveBackup", "futureLookCloud"],
+      "properties": {
+        "photoConsent": { "type": "boolean" },
+        "driveBackup": { "type": "boolean" },
+        "futureLookCloud": { "type": "boolean", "description": "v2 opt-in: would send a photo to a cloud image service. Default false." }
+      }
+    },
     "nutritionTargets": {
       "type": "object",
       "additionalProperties": false,
@@ -124,12 +169,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "heightUnit": { "type": "string", "enum": ["cm", "ft_in"] },
         "weightUnit": { "type": "string", "enum": ["kg", "lb"] },
-        "theme": { "type": "string", "enum": ["system", "light", "dark"] },
-        "waterReminderIntervalMin": { "type": "integer", "minimum": 15, "maximum": 360 },
-        "habitReminderTime": { "$ref": "#/definitions/hhmm" },
-        "fastingNotifications": { "type": "boolean" },
-        "waterReminders": { "type": "boolean" }
+        "theme": { "type": "string", "enum": ["system", "light", "dark"] }
       }
     }
   }

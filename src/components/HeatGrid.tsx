@@ -1,8 +1,20 @@
 import type { HabitLog, HabitStatus, ISODate } from '../types';
-import { addDays, isoWeekday, weekStart } from '../logic/dates';
+import { addDays, isoWeekday, weekStart } from '../utils/dates';
 
 /** GitHub-style heat grid, last `weeks` weeks, Monday at the top. */
-export function HeatGrid({ logs, today, weeks = 16, color = '#22a566', scheduled }: { logs: HabitLog[]; today: ISODate; weeks?: number; color?: string; scheduled?: (d: ISODate) => boolean }) {
+export function HeatGrid({
+  logs,
+  today,
+  weeks = 16,
+  color = '#22a566',
+  scheduled,
+}: {
+  logs: HabitLog[];
+  today: ISODate;
+  weeks?: number;
+  color?: string;
+  scheduled?: (d: ISODate) => boolean;
+}) {
   const byDate = new Map<ISODate, HabitStatus>();
   for (const l of logs) byDate.set(l.date, l.status);
   const end = weekStart(today);
@@ -37,7 +49,14 @@ export function HeatGrid({ logs, today, weeks = 16, color = '#22a566', scheduled
             } else if (st === 'skip') cls = 'bg-sky-200 dark:bg-sky-900';
             else if (st === 'miss' || (isSched && d < today)) cls = 'bg-rose-100 dark:bg-rose-950';
             if (!isSched && !st && !future) cls = 'bg-slate-50 dark:bg-slate-900';
-            return <div key={d} title={`${d}${st ? ` · ${st}` : ''}`} className={`h-3 w-3 rounded-[3px] ${cls} ${d === today ? 'ring-1 ring-slate-400' : ''}`} style={style} />;
+            return (
+              <div
+                key={d}
+                title={`${d}${st ? ` · ${st}` : ''}`}
+                className={`h-3 w-3 rounded-[3px] ${cls} ${d === today ? 'ring-1 ring-slate-400' : ''}`}
+                style={style}
+              />
+            );
           })}
         </div>
       ))}

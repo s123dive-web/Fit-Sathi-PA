@@ -1,11 +1,17 @@
-import type { HHMM, ISODate, Weekday } from '../types';
+import { addDays as dfAddDays, differenceInCalendarDays, eachDayOfInterval, format, getISODay, parseISO, startOfISOWeek } from 'date-fns';
+import type { DayName, HHMM, ISODate, Weekday } from '../types';
+
+/**
+ * Dates are stored as local calendar days (YYYY-MM-DD) and local HH:MM.
+ * The device's zone (Asia/Kolkata for the owner) is used for all display; timestamps are ISO strings.
+ */
 
 export function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
 export function toISODate(d: Date): ISODate {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return format(d, 'yyyy-MM-dd');
 }
 
 export function todayISO(now: Date = new Date()): ISODate {
@@ -13,31 +19,24 @@ export function todayISO(now: Date = new Date()): ISODate {
 }
 
 export function parseISODate(iso: ISODate): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
+  return parseISO(iso); // date-only ISO strings parse as local midnight
 }
 
 export function addDays(iso: ISODate, days: number): ISODate {
-  const d = parseISODate(iso);
-  d.setDate(d.getDate() + days);
-  return toISODate(d);
+  return toISODate(dfAddDays(parseISODate(iso), days));
 }
 
 export function diffDays(a: ISODate, b: ISODate): number {
-  const ms = parseISODate(b).getTime() - parseISODate(a).getTime();
-  return Math.round(ms / 86_400_000);
+  return differenceInCalendarDays(parseISODate(b), parseISODate(a));
 }
 
 /** ISO weekday: 1 = Monday ... 7 = Sunday */
 export function isoWeekday(iso: ISODate): Weekday {
-  const js = parseISODate(iso).getDay(); // 0 = Sunday
-  return (js === 0 ? 7 : js) as Weekday;
+  return getISODay(parseISODate(iso)) as Weekday;
 }
 
-/** Monday of the ISO week containing `iso`. */
 export function weekStart(iso: ISODate): ISODate {
-  const wd = isoWeekday(iso);
-  return addDays(iso, -(wd - 1));
+  return toISODate(startOfISOWeek(parseISODate(iso)));
 }
 
 export function weekEnd(iso: ISODate): ISODate {
@@ -45,15 +44,8 @@ export function weekEnd(iso: ISODate): ISODate {
 }
 
 export function eachDay(from: ISODate, to: ISODate): ISODate[] {
-  const out: ISODate[] = [];
-  let cur = from;
-  let guard = 0;
-  while (cur <= to && guard < 20_000) {
-    out.push(cur);
-    cur = addDays(cur, 1);
-    guard += 1;
-  }
-  return out;
+  if (to < from) return [];
+  return eachDayOfInterval({ start: parseISODate(from), end: parseISODate(to) }).map(toISODate);
 }
 
 export function parseHHMM(t: HHMM): { h: number; m: number } {
@@ -67,7 +59,7 @@ export function hhmmToMinutes(t: HHMM): number {
 }
 
 export function minutesToHHMM(mins: number): HHMM {
-  const m = ((mins % 1440) + 1440) % 1440;
+  const m = ((Math.round(mins) % 1440) + 1440) % 1440;
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
 }
 
@@ -91,25 +83,33 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 export function formatDateShort(iso: ISODate): string {
-  const d = parseISODate(iso);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return format(parseISODate(iso), 'd MMM');
 }
 
 export function formatDateLong(iso: ISODate): string {
-  const d = parseISODate(iso);
-  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return format(parseISODate(iso), 'EEE, d MMM yyyy');
 }
 
-export const WEEKDAY_LABELS: Record<Weekday, string> = {
-  1: 'Mon',
-  2: 'Tue',
-  3: 'Wed',
-  4: 'Thu',
-  5: 'Fri',
-  6: 'Sat',
-  7: 'Sun',
-};
+export const WEEKDAY_LABELS: Record<Weekday, string> = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun' };
+
+const DAY_NAMES: DayName[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+export function dayNameToWeekday(d: DayName): Weekday {
+  return (DAY_NAMES.indexOf(d) + 1) as Weekday;
+}
+
+export function weekdayToDayName(w: Weekday): DayName {
+  return DAY_NAMES[w - 1];
+}
+
+export function dayNamesToWeekdays(days: DayName[]): Weekday[] {
+  return [...new Set(days.map(dayNameToWeekday))].sort((a, b) => a - b) as Weekday[];
+}
 
 export function nowHHMM(now: Date = new Date()): HHMM {
   return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+
+export function nowIso(): string {
+  return new Date().toISOString();
 }

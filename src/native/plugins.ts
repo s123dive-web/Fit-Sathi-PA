@@ -3,7 +3,7 @@ import type { ISODate, PendingNativeAction } from '../types';
 
 /* ----------------------------- FitAlarms ----------------------------- */
 
-export type AlarmKind = 'supplement' | 'habit' | 'water' | 'fasting';
+export type AlarmKind = 'supplement' | 'workout' | 'habit' | 'water' | 'fasting' | 'motivation';
 export type AlarmAction = 'done' | 'skip' | 'snooze' | 'add';
 
 export interface AlarmSpec {
@@ -19,6 +19,10 @@ export interface AlarmSpec {
   actions: AlarmAction[];
   /** Use a user-visible alarm clock (AlarmManager.setAlarmClock) instead of a plain exact alarm. */
   alarmClock?: boolean;
+  /** Full-screen intent + alarm sound + vibration (supplements, workout). */
+  fullScreen?: boolean;
+  /** One-shot on this local date (YYYY-MM-DD) instead of a recurring daily/weekday alarm. */
+  date?: ISODate;
 }
 
 export interface PinnedItem {

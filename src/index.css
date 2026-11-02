@@ -7,10 +7,19 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   -webkit-tap-highlight-color: transparent;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Noto Sans',
+    sans-serif;
 }
 
 @layer components {
@@ -18,7 +27,7 @@ html, body, #root {
     @apply rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-sm font-medium transition active:scale-95 disabled:opacity-50;
+    @apply inline-flex min-h-[48px] items-center justify-center gap-1 rounded-xl px-3 py-2 text-sm font-medium transition active:scale-95 disabled:opacity-50;
   }
   .btn-primary {
     @apply btn bg-brand-600 text-white hover:bg-brand-700;
@@ -30,12 +39,35 @@ html, body, #root {
     @apply btn bg-rose-600 text-white hover:bg-rose-700;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-brand-900;
+    @apply min-h-[48px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-brand-900;
   }
   .label {
     @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400;
   }
   .chip {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 10px;
+  height: 16px;
+  border-radius: 2px;
+  opacity: 0.95;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.25, 0.8, 0.5, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0.2;
   }
 }

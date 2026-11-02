@@ -1,5 +1,5 @@
 import { settingsRepo, stepsRepo } from '../db/repos';
-import { todayISO } from '../logic/dates';
+import { todayISO } from '../utils/dates';
 import { FitHealthConnect, type HealthConnectStatus } from '../native/plugins';
 import { notifyChange } from '../store/appStore';
 
@@ -8,6 +8,7 @@ export interface StepsState {
   status: HealthConnectStatus | 'permission_denied' | 'disabled';
 }
 
+/** Read today's steps if Health Connect is enabled, available and permitted. Never throws. */
 export async function refreshSteps(): Promise<StepsState> {
   const settings = await settingsRepo.get();
   if (!settings.healthConnectEnabled) return { steps: null, status: 'disabled' };
@@ -34,4 +35,9 @@ export async function enableHealthConnect(): Promise<StepsState> {
   if (!perm.granted) return { steps: null, status: 'permission_denied' };
   await settingsRepo.set('healthConnectEnabled', true);
   return refreshSteps();
+}
+
+export async function disableHealthConnect(): Promise<void> {
+  await settingsRepo.set('healthConnectEnabled', false);
+  notifyChange();
 }

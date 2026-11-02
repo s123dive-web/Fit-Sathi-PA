@@ -1,32 +1,50 @@
 {
   "schemaVersion": 1,
-  "name": "Suresh",
-  "age": 42,
-  "sex": "male",
-  "city": "Pune",
-  "height": { "value": 172, "unit": "cm" },
-  "currentWeightKg": 84,
-  "targetWeightKg": 74,
-  "activityLevel": "light",
-  "dietType": "non_vegetarian",
-  "fasting": { "enabled": true, "start": "20:00", "end": "12:00" },
-  "sleep": { "start": "22:30", "end": "06:00" },
-  "waterTargetMl": 3000,
+  "user": {
+    "name": "Suresh",
+    "age": 38,
+    "heightCm": 174,
+    "currentWeightKg": 76,
+    "targetWeightKg": 65,
+    "activityLevel": "light",
+    "dietType": "non-veg",
+    "cuisine": "Maharashtrian",
+    "appearanceGoals": "improve facial appearance, skin tone, overall look"
+  },
+  "fasting": { "enabled": true, "eatStart": "12:00", "eatEnd": "19:00" },
+  "sleep": { "bedtime": "22:30", "wake": "06:00" },
+  "water": { "targetMl": 3000 },
+  "workout": {
+    "enabled": true,
+    "start": "05:30",
+    "end": "06:15",
+    "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    "location": "home",
+    "alarm": true
+  },
   "supplements": [
-    { "id": "sup_morning_juice", "name": "Morning juice", "dose": "1 glass (amla + wheatgrass)", "time": "06:40", "alarm": true },
-    { "id": "sup_capsule_afternoon", "name": "Capsule", "dose": "1 capsule after lunch", "time": "13:30", "alarm": true },
-    { "id": "sup_omega3", "name": "Omega-3", "dose": "1 softgel with dinner", "time": "19:30", "alarm": true }
+    { "name": "Sea buckthorn juice", "dose": "1 serving", "time": "06:40", "alarm": true },
+    { "name": "Sea buckthorn oil capsule", "dose": "1 capsule", "time": "13:55", "alarm": true },
+    { "name": "Sea buckthorn juice", "dose": "1 serving", "time": "17:45", "alarm": true }
   ],
-  "workout": { "start": "06:00", "end": "06:45", "days": [1, 2, 3, 4, 5, 6] },
-  "appearanceGoals": "Lose belly fat, visible jawline, fit into 34-inch trousers, better posture.",
-  "photoConsent": true,
-  "nutritionTargets": { "kcal": 1800, "proteinG": 120 },
-  "preferences": {
-    "weightUnit": "kg",
-    "theme": "system",
-    "waterReminderIntervalMin": 90,
-    "habitReminderTime": "20:30",
-    "fastingNotifications": true,
-    "waterReminders": true
-  }
+  "habits": [
+    { "name": "Wake at 05:30", "schedule": "daily" },
+    { "name": "45-min home workout", "schedule": "daily" },
+    { "name": "Dinner before 19:00", "schedule": "daily" },
+    { "name": "Skip breakfast (IF)", "schedule": "daily" },
+    { "name": "3L water", "schedule": "daily" },
+    { "name": "Weekend cricket / activity", "schedule": "weekly", "targetPerWeek": 1 }
+  ],
+  "typicalMeals": {
+    "breakfast": ["poha", "idli"],
+    "lunch": ["jowar bhakri", "dal", "rice", "salad"],
+    "dinner": ["chapati", "jowar bhakri", "Maharashtrian curry"],
+    "protein": { "chickenPerWeek": 2, "eggs": "sometimes" },
+    "drinks": { "teaWithSugarCups": 2, "coffeeCups": 2 }
+  },
+  "notifications": {
+    "motivational": { "enabled": true, "times": ["08:00", "20:00"] },
+    "fastingWarningMinutesBefore": 30
+  },
+  "privacy": { "photoConsent": true, "driveBackup": false, "futureLookCloud": false }
 }

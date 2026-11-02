@@ -75,6 +75,10 @@ export class FitAlarmsWeb extends WebPlugin implements FitAlarmsPlugin {
 }
 
 export function nextOccurrence(a: AlarmSpec, from: Date): Date {
+  if (a.date) {
+    const [y, m, d] = a.date.split('-').map(Number);
+    return new Date(y, m - 1, d, a.hour, a.minute, 0, 0);
+  }
   for (let i = 0; i < 8; i += 1) {
     const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i, a.hour, a.minute, 0, 0);
     const iso = d.getDay() === 0 ? 7 : d.getDay();

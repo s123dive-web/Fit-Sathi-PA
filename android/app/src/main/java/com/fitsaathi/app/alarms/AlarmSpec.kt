@@ -16,6 +16,8 @@ data class AlarmSpec(
     val days: List<Int>,          // ISO weekdays 1..7, empty = daily
     val actions: List<String>,    // done | skip | snooze | add
     val alarmClock: Boolean,
+    val fullScreen: Boolean = false,
+    val date: String? = null,     // one-shot on this local date (yyyy-MM-dd); null = recurring
 ) {
     val notificationId: Int get() = id.hashCode() and 0x7fffffff
 
@@ -23,10 +25,20 @@ data class AlarmSpec(
         put("id", id); put("kind", kind); put("refId", refId); put("title", title); put("body", body)
         put("hour", hour); put("minute", minute)
         put("days", JSONArray(days)); put("actions", JSONArray(actions)); put("alarmClock", alarmClock)
+        put("fullScreen", fullScreen); put("date", date ?: JSONObject.NULL)
     }
+
+    val isOneShot: Boolean get() = date != null
 
     /** Next occurrence strictly after `from` (epoch millis). */
     fun nextTriggerMillis(from: Long = System.currentTimeMillis()): Long {
+        if (date != null) {
+            val parts = date.split("-").map { it.toInt() }
+            val c = Calendar.getInstance().apply {
+                set(parts[0], parts[1] - 1, parts[2], hour, minute, 0); set(Calendar.MILLISECOND, 0)
+            }
+            return c.timeInMillis
+        }
         val cal = Calendar.getInstance().apply { timeInMillis = from }
         for (i in 0..7) {
             val c = (cal.clone() as Calendar).apply {
@@ -52,6 +64,8 @@ data class AlarmSpec(
             days = o.optJSONArray("days")?.let { a -> List(a.length()) { a.getInt(it) } } ?: emptyList(),
             actions = o.optJSONArray("actions")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList(),
             alarmClock = o.optBoolean("alarmClock", false),
+            fullScreen = o.optBoolean("fullScreen", false),
+            date = if (o.isNull("date")) null else o.optString("date").ifEmpty { null },
         )
     }
 }

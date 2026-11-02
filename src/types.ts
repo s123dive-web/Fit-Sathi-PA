@@ -1,68 +1,97 @@
 /** Shared domain types for FitSaathi. Everything is per-user; nothing is hardcoded to the owner. */
 
-export type ISODate = string; // YYYY-MM-DD (local)
+export type ISODate = string; // YYYY-MM-DD (local calendar day)
 export type HHMM = string; // 24h "HH:MM"
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7; // ISO: 1 = Monday ... 7 = Sunday
+export type DayName = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-export type DietType =
-  | 'vegetarian'
-  | 'eggetarian'
-  | 'non_vegetarian'
-  | 'vegan'
-  | 'jain'
-  | 'other';
+export type DietType = 'veg' | 'egg' | 'non-veg' | 'vegan' | 'jain' | 'other';
 export type HeightUnit = 'cm' | 'ft_in';
 export type WeightUnit = 'kg' | 'lb';
 export type Sex = 'male' | 'female' | 'other';
+export type Theme = 'system' | 'light' | 'dark';
 
 export interface Supplement {
-  id: string;
+  id: string; // stable id (generated from name + time when absent in an import)
   name: string;
   dose: string;
   time: HHMM;
   alarm: boolean;
 }
 
+export type ProfileHabitSchedule = 'daily' | 'weekly' | 'weekdays';
+
+/** Habit definition as it appears in the profile JSON (used to seed habits). */
+export interface ProfileHabit {
+  name: string;
+  schedule: ProfileHabitSchedule;
+  targetPerWeek?: number; // for 'weekly'
+  days?: DayName[]; // for 'weekdays'
+  emoji?: string;
+  reminder?: HHMM;
+}
+
+export interface TypicalMeals {
+  breakfast?: string[];
+  lunch?: string[];
+  dinner?: string[];
+  snacks?: string[];
+  protein?: { chickenPerWeek?: number; eggs?: string; fishPerWeek?: number };
+  drinks?: { teaWithSugarCups?: number; coffeeCups?: number };
+}
+
+export interface NotificationPrefs {
+  motivational: { enabled: boolean; times: HHMM[] };
+  fastingWarningMinutesBefore: number;
+  supplementAlarms?: boolean;
+  workoutAlarm?: boolean;
+  habitReminders?: boolean;
+  eveningCheckIn?: HHMM | null;
+  waterReminders?: boolean;
+  waterReminderIntervalMin?: number;
+  fastingWindow?: boolean;
+  pinnedChecklist?: boolean;
+}
+
 export interface Profile {
   schemaVersion: 1;
-  name: string;
-  age: number;
-  sex?: Sex;
-  city?: string;
-  height: { value: number; unit: HeightUnit }; // for ft_in, value is total inches
-  currentWeightKg: number;
-  targetWeightKg: number;
-  activityLevel: ActivityLevel;
-  dietType: DietType;
-  /** Fasting window: fast begins at `start`, eating resumes at `end` (may wrap past midnight). */
-  fasting: { enabled: boolean; start: HHMM; end: HHMM };
-  sleep: { start: HHMM; end: HHMM };
-  waterTargetMl: number;
-  supplements: Supplement[];
-  workout: { start: HHMM; end: HHMM; days: Weekday[] };
-  appearanceGoals: string;
-  photoConsent: boolean;
-  nutritionTargets?: { kcal?: number; proteinG?: number };
-  preferences?: {
-    weightUnit?: WeightUnit;
-    theme?: 'system' | 'light' | 'dark';
-    waterReminderIntervalMin?: number;
-    habitReminderTime?: HHMM;
-    fastingNotifications?: boolean;
-    waterReminders?: boolean;
+  user: {
+    name: string;
+    age: number;
+    sex?: Sex;
+    city?: string;
+    heightCm: number;
+    currentWeightKg: number;
+    targetWeightKg: number;
+    activityLevel: ActivityLevel;
+    dietType: DietType;
+    cuisine?: string;
+    appearanceGoals: string;
   };
+  /** Eating window. Fasting runs from eatEnd to eatStart (wraps past midnight). */
+  fasting: { enabled: boolean; eatStart: HHMM; eatEnd: HHMM };
+  sleep: { bedtime: HHMM; wake: HHMM };
+  water: { targetMl: number };
+  workout: { enabled: boolean; start: HHMM; end: HHMM; days: DayName[]; location?: string; alarm: boolean };
+  supplements: Supplement[];
+  habits: ProfileHabit[];
+  typicalMeals?: TypicalMeals;
+  notifications: NotificationPrefs;
+  privacy: { photoConsent: boolean; driveBackup: boolean; futureLookCloud: boolean };
+  nutritionTargets?: { kcal?: number; proteinG?: number };
+  preferences?: { heightUnit?: HeightUnit; weightUnit?: WeightUnit; theme?: Theme };
 }
 
 export type HabitScheduleType = 'daily' | 'times_per_week' | 'weekdays';
 
 export interface HabitSchedule {
   type: HabitScheduleType;
-  timesPerWeek?: number; // for times_per_week
-  weekdays?: Weekday[]; // for weekdays
+  timesPerWeek?: number;
+  weekdays?: Weekday[];
 }
 
-export type HabitKind = 'generic' | 'workout' | 'fasting' | 'sleep' | 'custom';
+export type HabitKind = 'generic' | 'workout' | 'fasting' | 'sleep' | 'water' | 'custom';
 
 export interface Habit {
   id: string;
@@ -73,7 +102,7 @@ export interface Habit {
   schedule: HabitSchedule;
   reminderTime: HHMM | null;
   reminderEnabled: boolean;
-  pinned: boolean; // shown in persistent notification / widget
+  pinned: boolean;
   archived: boolean;
   createdAt: ISODate;
   sortOrder: number;
@@ -87,7 +116,7 @@ export interface HabitLog {
   date: ISODate;
   status: HabitStatus;
   note?: string;
-  loggedAt: string; // ISO timestamp
+  loggedAt: string;
 }
 
 export interface SupplementLog {
@@ -143,10 +172,10 @@ export interface MealLog {
 export interface ProgressPhoto {
   id: string;
   date: ISODate;
-  storageKey: string; // handle into encrypted storage
+  path: string; // handle into encrypted storage
+  takenAt: string;
   weightKg: number | null;
   note: string;
-  createdAt: string;
 }
 
 export interface StepsEntry {
@@ -157,8 +186,8 @@ export interface StepsEntry {
 }
 
 export interface WeeklySummary {
-  weekStart: ISODate; // Monday
-  weekEnd: ISODate; // Sunday
+  weekStart: ISODate;
+  weekEnd: ISODate;
   habitsPct: number;
   avgWaterMl: number;
   workoutsDone: number;
@@ -169,7 +198,7 @@ export interface WeeklySummary {
   generatedAt: string;
 }
 
-export interface XpEvent {
+export interface PointsEntry {
   id: string;
   date: ISODate;
   amount: number;
@@ -177,14 +206,22 @@ export interface XpEvent {
   loggedAt: string;
 }
 
+export interface NotificationLogEntry {
+  id: string;
+  kind: 'motivation' | 'alarm' | 'reminder';
+  refId: string; // quote id / alarm id
+  scheduledFor: string; // ISO timestamp (local)
+  body: string;
+  createdAt: string;
+}
+
 export interface Settings {
   onboarded: boolean;
-  theme: 'system' | 'light' | 'dark';
+  theme: Theme;
   weightUnit: WeightUnit;
+  heightUnit: HeightUnit;
   healthConnectEnabled: boolean;
-  futureLookCloudEnabled: boolean; // v2 stub: default OFF
   lastWeeklySummaryFor: ISODate | null;
-  pinnedNotificationEnabled: boolean;
   installedAt: string;
 }
 

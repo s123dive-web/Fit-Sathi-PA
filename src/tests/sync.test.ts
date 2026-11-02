@@ -1,47 +1,64 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildAlarms } from '../services/sync';
-import { starterHabits } from '../logic/profile';
+import { habitsFromProfile, validateProfile } from '../utils/profile';
 import type { Profile } from '../types';
 
-const sample = JSON.parse(readFileSync(new URL('../../sample/suresh_profile.json', import.meta.url), 'utf8')) as Profile;
+const raw = JSON.parse(readFileSync(new URL('../../sample/suresh_profile.json', import.meta.url), 'utf8')) as Profile;
+const sample = validateProfile(raw).profile!;
 
 describe('alarm set from profile + habits', () => {
-  it('creates one alarm per supplement with alarm=true, at the right time', () => {
-    const alarms = buildAlarms(sample, []);
-    const sup = alarms.filter((a) => a.kind === 'supplement');
-    expect(sup).toHaveLength(sample.supplements.filter((s) => s.alarm).length);
-    const juice = sup.find((a) => a.refId === 'sup_morning_juice');
-    expect(juice?.hour).toBe(6);
-    expect(juice?.minute).toBe(40);
-    expect(juice?.alarmClock).toBe(true);
+  it('creates the three supplement alarms at 06:40, 13:55 and 17:45 as full-screen alarm clocks', () => {
+    const sup = buildAlarms(sample, []).filter((a) => a.kind === 'supplement');
+    expect(sup.map((a) => `${a.hour}:${a.minute}`)).toEqual(['6:40', '13:55', '17:45']);
+    for (const a of sup) {
+      expect(a.alarmClock).toBe(true);
+      expect(a.fullScreen).toBe(true);
+      expect(a.actions).toContain('done');
+      expect(a.actions).toContain('snooze');
+    }
   });
 
-  it('adds habit reminders only when enabled, with weekday restriction', () => {
-    const habits = starterHabits(sample);
-    const alarms = buildAlarms(sample, habits);
-    const workout = alarms.find((a) => a.id.startsWith('hab:') && a.title.includes('Workout'));
-    expect(workout?.days).toEqual(sample.workout.days);
-    expect(workout?.actions).toContain('skip');
+  it('creates the daily 05:30 workout alarm', () => {
+    const w = buildAlarms(sample, habitsFromProfile(sample)).find((a) => a.kind === 'workout');
+    expect(w?.hour).toBe(5);
+    expect(w?.minute).toBe(30);
+    expect(w?.days).toEqual([]); // every day
+    expect(w?.fullScreen).toBe(true);
+    expect(w?.actions).toContain('done');
   });
 
-  it('spaces water reminders within waking hours and adds fasting edges', () => {
-    const alarms = buildAlarms(sample, []);
-    const water = alarms.filter((a) => a.kind === 'water');
+  it('warns 30 minutes before the eating window closes (18:30 for 19:00)', () => {
+    const warn = buildAlarms(sample, []).find((a) => a.id === 'fast:warn');
+    expect(warn?.hour).toBe(18);
+    expect(warn?.minute).toBe(30);
+    expect(buildAlarms(sample, []).some((a) => a.id === 'fast:close' && a.hour === 19)).toBe(true);
+    expect(buildAlarms(sample, []).some((a) => a.id === 'fast:open' && a.hour === 12)).toBe(true);
+  });
+
+  it('spaces water reminders within waking hours', () => {
+    const water = buildAlarms(sample, []).filter((a) => a.kind === 'water');
     expect(water.length).toBeGreaterThan(5);
     for (const w of water) {
       const mins = w.hour * 60 + w.minute;
-      expect(mins).toBeGreaterThan(6 * 60); // after wake 06:00
-      expect(mins).toBeLessThan(22 * 60 + 30); // before sleep 22:30
+      expect(mins).toBeGreaterThan(6 * 60);
+      expect(mins).toBeLessThan(22 * 60 + 30);
     }
-    expect(alarms.some((a) => a.id === 'fast:start' && a.hour === 20)).toBe(true);
-    expect(alarms.some((a) => a.id === 'fast:end' && a.hour === 12)).toBe(true);
   });
 
-  it('honours preference toggles', () => {
-    const p: Profile = { ...sample, preferences: { ...sample.preferences, waterReminders: false, fastingNotifications: false } };
-    const alarms = buildAlarms(p, []);
-    expect(alarms.some((a) => a.kind === 'water')).toBe(false);
-    expect(alarms.some((a) => a.kind === 'fasting')).toBe(false);
+  it('honours every channel toggle', () => {
+    const off: Profile = {
+      ...sample,
+      notifications: {
+        ...sample.notifications,
+        supplementAlarms: false,
+        workoutAlarm: false,
+        waterReminders: false,
+        fastingWindow: false,
+        habitReminders: false,
+      },
+    };
+    const alarms = buildAlarms(off, habitsFromProfile(off));
+    expect(alarms).toHaveLength(0);
   });
 });

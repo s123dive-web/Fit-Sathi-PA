@@ -1,69 +1,89 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
+import { create } from 'zustand';
 
 /**
- * Tiny external store: a global revision counter that bumps after every write,
- * plus a few UI-level values. Screens re-query SQLite when the revision changes.
+ * Zustand UI store. SQLite is the source of truth; `revision` bumps after every write and
+ * screens re-query through `useAsyncData`. Also drives XP bursts, confetti and toasts.
  */
-type Listener = () => void;
+export interface XpBurst {
+  id: number;
+  amount: number;
+  x: number;
+  y: number;
+}
 
-interface UiState {
+export interface Confetti {
+  id: number;
+  label: string;
+}
+
+export interface Toast {
+  id: number;
+  message: string;
+  kind: 'info' | 'success' | 'error';
+}
+
+interface AppState {
   revision: number;
-  xpBurst: { id: number; amount: number; x: number; y: number } | null;
-  toast: { id: number; message: string; kind: 'info' | 'success' | 'error' } | null;
-}
-
-let state: UiState = { revision: 0, xpBurst: null, toast: null };
-const listeners = new Set<Listener>();
-
-function emit() {
-  for (const l of listeners) l();
-}
-
-function subscribe(l: Listener) {
-  listeners.add(l);
-  return () => {
-    listeners.delete(l);
-  };
-}
-
-export function notifyChange(): void {
-  state = { ...state, revision: state.revision + 1 };
-  emit();
-}
-
-export function showXp(amount: number, x?: number, y?: number): void {
-  state = {
-    ...state,
-    xpBurst: { id: Date.now(), amount, x: x ?? window.innerWidth / 2, y: y ?? window.innerHeight / 2 },
-  };
-  emit();
-  setTimeout(() => {
-    state = { ...state, xpBurst: null };
-    emit();
-  }, 950);
+  xpBurst: XpBurst | null;
+  confetti: Confetti | null;
+  toast: Toast | null;
+  notifyChange: () => void;
+  showXp: (amount: number, x?: number, y?: number) => void;
+  celebrate: (label: string) => void;
+  toastMsg: (message: string, kind?: Toast['kind']) => void;
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
-export function toast(message: string, kind: 'info' | 'success' | 'error' = 'info'): void {
-  state = { ...state, toast: { id: Date.now(), message, kind } };
-  emit();
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    state = { ...state, toast: null };
-    emit();
-  }, 2600);
-}
 
-export function useUiState(): UiState {
-  return useSyncExternalStore(subscribe, () => state, () => state);
-}
+export const useAppStore = create<AppState>((set) => ({
+  revision: 0,
+  xpBurst: null,
+  confetti: null,
+  toast: null,
+  notifyChange: () => set((s) => ({ revision: s.revision + 1 })),
+  showXp: (amount, x, y) => {
+    const burst: XpBurst = {
+      id: Date.now(),
+      amount,
+      x: x ?? (typeof window !== 'undefined' ? window.innerWidth / 2 : 0),
+      y: y ?? (typeof window !== 'undefined' ? window.innerHeight / 2 : 0),
+    };
+    set({ xpBurst: burst });
+    setTimeout(() => set((s) => (s.xpBurst?.id === burst.id ? { xpBurst: null } : {})), 950);
+  },
+  celebrate: (label) => {
+    const c: Confetti = { id: Date.now(), label };
+    set({ confetti: c });
+    setTimeout(() => set((s) => (s.confetti?.id === c.id ? { confetti: null } : {})), 2600);
+  },
+  toastMsg: (message, kind = 'info') => {
+    const t: Toast = { id: Date.now(), message, kind };
+    set({ toast: t });
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => set((s) => (s.toast?.id === t.id ? { toast: null } : {})), 2600);
+  },
+}));
+
+// Imperative helpers for services (outside React).
+export const notifyChange = (): void => useAppStore.getState().notifyChange();
+export const showXp = (amount: number, x?: number, y?: number): void => useAppStore.getState().showXp(amount, x, y);
+export const celebrate = (label: string): void => useAppStore.getState().celebrate(label);
+export const toast = (message: string, kind: Toast['kind'] = 'info'): void => useAppStore.getState().toastMsg(message, kind);
 
 export function useRevision(): number {
-  return useSyncExternalStore(subscribe, () => state.revision, () => state.revision);
+  return useAppStore((s) => s.revision);
+}
+
+export interface AsyncData<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  reload: () => void;
 }
 
 /** Run an async loader whenever the global revision (or extra deps) change. */
-export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []): { data: T | null; loading: boolean; error: string | null; reload: () => void } {
+export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []): AsyncData<T> {
   const revision = useRevision();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,8 +99,8 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []):
           setError(null);
         }
       })
-      .catch((e) => {
-        if (!cancelled) setError((e as Error).message);
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

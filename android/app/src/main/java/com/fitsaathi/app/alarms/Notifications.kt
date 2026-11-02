@@ -19,17 +19,19 @@ object Notifications {
     const val CHANNEL_ALARMS = "fitsaathi_alarms"
     const val CHANNEL_REMINDERS = "fitsaathi_reminders"
     const val CHANNEL_PINNED = "fitsaathi_pinned"
+    const val CHANNEL_MOTIVATION = "fitsaathi_motivation"
     const val PINNED_ID = 4242
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL_ALARMS, "Supplement alarms", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Exact-time alarms for supplements"
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_ALARMS, "Supplement & workout alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Exact-time, full-screen alarms"
             setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), null)
             enableVibration(true)
         })
         nm.createNotificationChannel(NotificationChannel(CHANNEL_REMINDERS, "Habit, water & fasting reminders", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_MOTIVATION, "Motivational messages", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_PINNED, "Today's checklist (pinned)", NotificationManager.IMPORTANCE_LOW).apply {
             setShowBadge(false)
         })
@@ -55,21 +57,30 @@ object Notifications {
         return PendingIntent.getBroadcast(ctx, code, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
+    private fun channelFor(spec: AlarmSpec): String = when {
+        spec.fullScreen -> CHANNEL_ALARMS
+        spec.kind == "motivation" -> CHANNEL_MOTIVATION
+        else -> CHANNEL_REMINDERS
+    }
+
     fun showAlarm(ctx: Context, spec: AlarmSpec) {
         ensureChannels(ctx)
         if (!canPost(ctx)) return
-        val channel = if (spec.kind == "supplement") CHANNEL_ALARMS else CHANNEL_REMINDERS
-        val b = NotificationCompat.Builder(ctx, channel)
+        val b = NotificationCompat.Builder(ctx, channelFor(spec))
             .setSmallIcon(R.drawable.ic_stat_fitsaathi)
             .setContentTitle(spec.title)
             .setContentText(spec.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(spec.body))
-            .setPriority(if (spec.kind == "supplement") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-            .setCategory(if (spec.kind == "supplement") NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(if (spec.fullScreen) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(if (spec.fullScreen) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(openApp(ctx, spec.notificationId))
-        if (spec.kind == "supplement") b.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
-        val kind = if (spec.kind == "fasting") "habit" else spec.kind
+        if (spec.fullScreen) {
+            b.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+                .setVibrate(longArrayOf(0, 600, 300, 600, 300, 600))
+                .setFullScreenIntent(AlarmActivity.pendingIntent(ctx, spec), true)
+        }
+        val kind = when (spec.kind) { "fasting", "motivation", "workout" -> "habit"; else -> spec.kind }
         var code = spec.notificationId * 7
         for (a in spec.actions) {
             val label = when (a) { "done" -> "✓ Done"; "skip" -> "Skip"; "snooze" -> "Snooze 10m"; "add" -> "+250 ml"; else -> a }

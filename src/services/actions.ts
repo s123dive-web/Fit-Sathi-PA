@@ -1,11 +1,15 @@
 import type { HabitStatus, ISODate, MealLog, Profile } from '../types';
-import { habitRepo, mealRepo, supplementRepo, waterRepo, weightRepo, xpRepo } from '../db/repos';
-import { XP } from '../logic/xp';
-import { isInEatingWindow } from '../logic/fasting';
-import { notifyChange, showXp, toast } from '../store/appStore';
+import { habitRepo, mealRepo, pointsRepo, supplementRepo, waterRepo, weightRepo } from '../db/repos';
+import { XP } from '../utils/xp';
+import { isInEatingWindow } from '../utils/fasting';
+import { computeStreaks } from '../utils/habitStrength';
+import { isMilestone } from '../utils/milestones';
+import { successHaptic, tapHaptic } from '../utils/haptics';
+import { celebrate, notifyChange, showXp, toast } from '../store/appStore';
+import { t } from '../i18n';
 import { syncNative } from './sync';
 
-/** Mark a habit done / skip / miss (or clear with null). Grants XP on done, revokes on undo. */
+/** Mark a habit done / skip / miss (or clear with null). Grants XP on done, revokes on undo, confetti on milestones. */
 export async function setHabitStatus(
   habitId: string,
   date: ISODate,
@@ -17,30 +21,38 @@ export async function setHabitStatus(
   const reason = `habit:${habitId}`;
   if (status === 'done' && prev !== 'done') {
     const amount = opts.xp ?? XP.habitDone;
-    await xpRepo.add(date, amount, reason);
-    if (!opts.silent) showXp(amount, opts.anchor?.x, opts.anchor?.y);
+    await pointsRepo.add(date, amount, reason);
+    if (!opts.silent) {
+      showXp(amount, opts.anchor?.x, opts.anchor?.y);
+      void tapHaptic();
+      const habit = await habitRepo.get(habitId);
+      if (habit) {
+        const streak = computeStreaks(habit.schedule, await habitRepo.logsFor(habitId), habit.createdAt, date);
+        if (streak.unit === 'days' && isMilestone(streak.current)) {
+          await pointsRepo.add(date, XP.streakBonusPer7, `milestone:${habitId}:${streak.current}`);
+          celebrate(t('today.milestone', { n: streak.current }));
+          void successHaptic();
+        }
+      }
+    }
   } else if (status !== 'done' && prev === 'done') {
-    await xpRepo.revoke(date, reason);
+    await pointsRepo.revoke(date, reason);
   }
   notifyChange();
   void syncNative();
 }
 
-export async function toggleSupplement(
-  supplementId: string,
-  date: ISODate,
-  taken: boolean,
-  anchor?: { x: number; y: number },
-): Promise<void> {
+export async function toggleSupplement(supplementId: string, date: ISODate, taken: boolean, anchor?: { x: number; y: number }): Promise<void> {
   const logs = await supplementRepo.logsOn(date);
   const was = logs.some((l) => l.supplementId === supplementId);
   await supplementRepo.setTaken(supplementId, date, taken);
   const reason = `supplement:${supplementId}`;
   if (taken && !was) {
-    await xpRepo.add(date, XP.supplementTaken, reason);
+    await pointsRepo.add(date, XP.supplementTaken, reason);
     showXp(XP.supplementTaken, anchor?.x, anchor?.y);
+    void tapHaptic();
   } else if (!taken && was) {
-    await xpRepo.revoke(date, reason);
+    await pointsRepo.revoke(date, reason);
   }
   notifyChange();
   void syncNative();
@@ -51,11 +63,14 @@ export async function addWater(date: ISODate, ml: number, targetMl: number, anch
   await waterRepo.add(date, ml);
   const after = before + ml;
   let gained = XP.waterTap;
-  await xpRepo.add(date, XP.waterTap, `water:tap:${Date.now()}`);
+  await pointsRepo.add(date, XP.waterTap, `water:tap:${Date.now()}`);
   if (before < targetMl && after >= targetMl) {
-    await xpRepo.add(date, XP.waterTargetHit, 'water:target');
+    await pointsRepo.add(date, XP.waterTargetHit, 'water:target');
     gained += XP.waterTargetHit;
-    toast('Water target reached! 💧', 'success');
+    toast(t('today.waterTarget'), 'success');
+    void successHaptic();
+  } else {
+    void tapHaptic();
   }
   showXp(gained, anchor?.x, anchor?.y);
   notifyChange();
@@ -70,19 +85,13 @@ export async function undoWater(date: ISODate): Promise<void> {
 
 export async function logWeight(date: ISODate, kg: number, anchor?: { x: number; y: number }): Promise<void> {
   await weightRepo.add(date, kg);
-  const already = (await xpRepo.totalOn(date)) > 0 && (await hasReason(date, 'weight'));
-  if (!already) {
-    await xpRepo.add(date, XP.weightLogged, 'weight');
+  if (!(await pointsRepo.has(date, 'weight'))) {
+    await pointsRepo.add(date, XP.weightLogged, 'weight');
     showXp(XP.weightLogged, anchor?.x, anchor?.y);
   }
+  void tapHaptic();
   notifyChange();
-}
-
-async function hasReason(date: ISODate, reason: string): Promise<boolean> {
-  const { getDb } = await import('../db/database');
-  const db = await getDb();
-  const rows = await db.query<{ n: number }>(`SELECT COUNT(*) as n FROM xp_events WHERE date = ? AND reason = ?`, [date, reason]);
-  return (rows[0]?.n ?? 0) > 0;
+  void syncNative();
 }
 
 export async function logMeal(
@@ -92,15 +101,16 @@ export async function logMeal(
 ): Promise<MealLog> {
   const outside = profile.fasting.enabled && !isInEatingWindow(profile.fasting, input.time);
   const meal = await mealRepo.add({ ...input, outsideFastingWindow: outside });
-  await xpRepo.add(input.date, XP.mealLogged, `meal:${meal.id}`);
+  await pointsRepo.add(input.date, XP.mealLogged, `meal:${meal.id}`);
   showXp(XP.mealLogged, anchor?.x, anchor?.y);
-  if (outside) toast('Logged outside your eating window', 'info');
+  void tapHaptic();
+  if (outside) toast(t('food.loggedOutside'), 'info');
   notifyChange();
   return meal;
 }
 
 export async function removeMeal(id: string, date: ISODate): Promise<void> {
   await mealRepo.remove(id);
-  await xpRepo.revoke(date, `meal:${id}`);
+  await pointsRepo.revoke(date, `meal:${id}`);
   notifyChange();
 }

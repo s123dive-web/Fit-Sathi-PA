@@ -1,4 +1,4 @@
-import type { HeightUnit, WeightUnit } from '../types';
+import type { WeightUnit } from '../types';
 
 export function kgToLb(kg: number): number {
   return kg * 2.2046226218;
@@ -13,14 +13,18 @@ export function inchesToCm(inches: number): number {
   return inches * 2.54;
 }
 
-export function heightToCm(height: { value: number; unit: HeightUnit }): number {
-  return height.unit === 'cm' ? height.value : inchesToCm(height.value);
+export function cmToFtIn(cm: number): { ft: number; inch: number } {
+  const total = Math.round(cmToInches(cm));
+  return { ft: Math.floor(total / 12), inch: total % 12 };
 }
 
-export function formatHeight(height: { value: number; unit: HeightUnit }): string {
-  if (height.unit === 'cm') return `${Math.round(height.value)} cm`;
-  const ft = Math.floor(height.value / 12);
-  const inch = Math.round(height.value - ft * 12);
+export function ftInToCm(ft: number, inch: number): number {
+  return Math.round(inchesToCm(ft * 12 + inch) * 10) / 10;
+}
+
+export function formatHeight(cm: number, unit: 'cm' | 'ft_in'): string {
+  if (unit === 'cm') return `${Math.round(cm)} cm`;
+  const { ft, inch } = cmToFtIn(cm);
   return `${ft}′ ${inch}″`;
 }
 

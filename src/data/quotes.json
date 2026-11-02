@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "placeholders": ["name", "streak", "daysToTarget", "kgLeft", "bestStreak", "weekCompletion", "targetKg", "eatStart"],
+  "quotes": [
+    {
+      "id": "g01",
+      "kind": "generic",
+      "text": "Small steps every day add up to big change."
+    },
+    {
+      "id": "g02",
+      "kind": "generic",
+      "text": "Discipline is choosing what you want most over what you want now."
+    },
+    {
+      "id": "g03",
+      "kind": "generic",
+      "text": "You don't have to be extreme, just consistent."
+    },
+    {
+      "id": "g04",
+      "kind": "generic",
+      "text": "The body achieves what the mind believes."
+    },
+    {
+      "id": "g05",
+      "kind": "generic",
+      "text": "Motivation gets you started. Habit keeps you going."
+    },
+    {
+      "id": "g06",
+      "kind": "generic",
+      "text": "One workout at a time. One meal at a time. One day at a time."
+    },
+    {
+      "id": "g07",
+      "kind": "generic",
+      "text": "Rest if you must, but don't quit."
+    },
+    {
+      "id": "g08",
+      "kind": "generic",
+      "text": "Strength grows in the moments you think you can't go on."
+    },
+    {
+      "id": "g09",
+      "kind": "generic",
+      "text": "Your only competition is who you were yesterday."
+    },
+    {
+      "id": "g10",
+      "kind": "generic",
+      "text": "Sweat today, smile tomorrow."
+    },
+    {
+      "id": "g11",
+      "kind": "generic",
+      "text": "Progress, not perfection."
+    },
+    {
+      "id": "g12",
+      "kind": "generic",
+      "text": "Every rep is a vote for the person you're becoming."
+    },
+    {
+      "id": "g13",
+      "kind": "generic",
+      "text": "Good habits are worth being a little stubborn about."
+    },
+    {
+      "id": "g14",
+      "kind": "generic",
+      "text": "It never gets easier. You get stronger."
+    },
+    {
+      "id": "g15",
+      "kind": "generic",
+      "text": "The best time to start was yesterday. The next best time is now."
+    },
+    {
+      "id": "g16",
+      "kind": "generic",
+      "text": "Take care of your body. It's the only place you have to live."
+    },
+    {
+      "id": "g17",
+      "kind": "generic",
+      "text": "A year from now you'll wish you had started today."
+    },
+    {
+      "id": "g18",
+      "kind": "generic",
+      "text": "What you do today can improve all your tomorrows."
+    },
+    {
+      "id": "g19",
+      "kind": "generic",
+      "text": "Slow progress is still progress."
+    },
+    {
+      "id": "g20",
+      "kind": "generic",
+      "text": "Drink the water. Walk the walk. Sleep the sleep."
+    },
+    {
+      "id": "g21",
+      "kind": "generic",
+      "text": "Consistency beats intensity."
+    },
+    {
+      "id": "g22",
+      "kind": "generic",
+      "text": "You are one decision away from a better day."
+    },
+    {
+      "id": "g23",
+      "kind": "generic",
+      "text": "Don't count the days. Make the days count."
+    },
+    {
+      "id": "g24",
+      "kind": "generic",
+      "text": "Health is a relationship between you and your body."
+    },
+    {
+      "id": "g25",
+      "kind": "generic",
+      "text": "Fitness is earned, one choice at a time."
+    },
+    {
+      "id": "g26",
+      "kind": "generic",
+      "text": "Energy comes from movement, not from waiting for it."
+    },
+    {
+      "id": "g27",
+      "kind": "generic",
+      "text": "Eat for the body you want, not the body you have."
+    },
+    {
+      "id": "g28",
+      "kind": "generic",
+      "text": "Habits are the compound interest of self-improvement."
+    },
+    {
+      "id": "g29",
+      "kind": "generic",
+      "text": "You will never regret a workout you finished."
+    },
+    {
+      "id": "g30",
+      "kind": "generic",
+      "text": "Showing up is half the battle. You're here."
+    },
+    {
+      "id": "f01",
+      "kind": "future_you",
+      "text": "{name}, {daysToTarget} days to {targetKg} kg. Future you at the cricket ground is lighter and faster."
+    },
+    {
+      "id": "f02",
+      "kind": "future_you",
+      "text": "{name}, {kgLeft} kg to go. Future you is already enjoying the view from the other side."
+    },
+    {
+      "id": "f03",
+      "kind": "future_you",
+      "text": "{streak} days strong, {name}. Future you is proud of this streak."
+    },
+    {
+      "id": "f04",
+      "kind": "future_you",
+      "text": "Picture {name} in {daysToTarget} days: {targetKg} kg, sharper jawline, more energy. Keep going."
+    },
+    {
+      "id": "f05",
+      "kind": "future_you",
+      "text": "{name}, your best streak is {bestStreak} days. Beat it this time."
+    },
+    {
+      "id": "f06",
+      "kind": "future_you",
+      "text": "{weekCompletion}% of this week's habits done, {name}. Finish strong."
+    },
+    {
+      "id": "f07",
+      "kind": "future_you",
+      "text": "Future {name} wakes up at 05:30 without an alarm. Today's wake-up builds that."
+    },
+    {
+      "id": "f08",
+      "kind": "future_you",
+      "text": "{kgLeft} kg between you and your goal, {name}. Every fasted morning closes the gap."
+    },
+    {
+      "id": "f09",
+      "kind": "future_you",
+      "text": "{name}, skin, face, energy: the mirror in {daysToTarget} days reflects today's choices."
+    },
+    {
+      "id": "f10",
+      "kind": "future_you",
+      "text": "Future {name} buys clothes a size smaller. {kgLeft} kg to go."
+    },
+    {
+      "id": "f11",
+      "kind": "future_you",
+      "text": "{streak}-day streak. Future {name} says thank you."
+    },
+    {
+      "id": "f12",
+      "kind": "future_you",
+      "text": "Lighter, faster, sharper: {name} at {targetKg} kg is {daysToTarget} days away."
+    },
+    {
+      "id": "f13",
+      "kind": "future_you",
+      "text": "{name}, {weekCompletion}% this week. Future you remembers the weeks you didn't give up."
+    },
+    {
+      "id": "f14",
+      "kind": "future_you",
+      "text": "Dinner before 19:00 tonight, {name}. Future you sleeps better and wakes lighter."
+    },
+    {
+      "id": "f15",
+      "kind": "future_you",
+      "text": "{name}, water count: future you's skin is thanking you for every glass."
+    },
+    {
+      "id": "f16",
+      "kind": "future_you",
+      "text": "Every workout is a deposit, {name}. The balance is {kgLeft} kg away from the goal."
+    },
+    {
+      "id": "f17",
+      "kind": "future_you",
+      "text": "{name}, the version of you at {targetKg} kg started exactly like this: one ordinary day done right."
+    },
+    {
+      "id": "f18",
+      "kind": "future_you",
+      "text": "Best streak {bestStreak}, current {streak}. {name}, the record is yours to break."
+    },
+    {
+      "id": "f19",
+      "kind": "future_you",
+      "text": "{daysToTarget} days, {name}. That's just {daysToTarget} good mornings."
+    },
+    {
+      "id": "f20",
+      "kind": "future_you",
+      "text": "Future {name} runs between the wickets without losing breath. Today's walk gets you there."
+    },
+    {
+      "id": "f21",
+      "kind": "future_you",
+      "text": "{name}, your plate today shapes your face in {daysToTarget} days."
+    },
+    {
+      "id": "f22",
+      "kind": "future_you",
+      "text": "{kgLeft} kg is not a mountain, {name}. It's a staircase and you're already climbing."
+    },
+    {
+      "id": "f23",
+      "kind": "future_you",
+      "text": "{name}, {weekCompletion}% done this week. Future you is cheering from {targetKg} kg."
+    },
+    {
+      "id": "f24",
+      "kind": "future_you",
+      "text": "Skip the sugar in the tea, {name}. Future you's skin tone starts in the cup."
+    },
+    {
+      "id": "f25",
+      "kind": "future_you",
+      "text": "{name}, {streak} days in. Momentum is on your side now."
+    },
+    {
+      "id": "f26",
+      "kind": "future_you",
+      "text": "Future {name} gets asked what changed. The answer is today."
+    },
+    {
+      "id": "f27",
+      "kind": "future_you",
+      "text": "{name}, {daysToTarget} sunrises until {targetKg} kg. Make this one count."
+    },
+    {
+      "id": "f28",
+      "kind": "future_you",
+      "text": "Tick the habits, {name}. {weekCompletion}% becomes 100% one tap at a time."
+    },
+    {
+      "id": "f29",
+      "kind": "future_you",
+      "text": "{name}, fasting until {eatStart} is tough. Future you at {targetKg} kg says it was worth it."
+    },
+    {
+      "id": "f30",
+      "kind": "future_you",
+      "text": "Lift, walk, drink, sleep, {name}. Future you is built from these four words."
+    },
+    {
+      "id": "f31",
+      "kind": "future_you",
+      "text": "{name}, {kgLeft} kg lighter means a lighter step at the ground this weekend."
+    },
+    {
+      "id": "f32",
+      "kind": "future_you",
+      "text": "Today's workout is tomorrow's confidence, {name}."
+    },
+    {
+      "id": "f33",
+      "kind": "future_you",
+      "text": "{name}, you've logged {streak} days in a row. That's not luck, that's you."
+    },
+    {
+      "id": "f34",
+      "kind": "future_you",
+      "text": "{bestStreak}-day best, {name}. Future you wants to see {bestStreak} become a warm-up."
+    }
+  ]
+}

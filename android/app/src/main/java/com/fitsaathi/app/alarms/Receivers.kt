@@ -18,7 +18,7 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
         Notifications.showAlarm(context, spec)
-        if (!snooze) AlarmScheduler.schedule(context, spec)
+        if (!snooze && !spec.isOneShot) AlarmScheduler.schedule(context, spec)
     }
 }
 

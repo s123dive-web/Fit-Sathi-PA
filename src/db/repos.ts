@@ -5,21 +5,23 @@ import type {
   HabitStatus,
   ISODate,
   MealLog,
+  NotificationLogEntry,
+  PointsEntry,
   Profile,
   ProgressPhoto,
   Settings,
   StepsEntry,
+  Supplement,
   SupplementLog,
   WaterLog,
   WeeklySummary,
   WeightEntry,
-  XpEvent,
 } from '../types';
 import { getDb } from './database';
-import { newId } from '../logic/ids';
+import { newId } from '../utils/ids';
+import { nowIso } from '../utils/dates';
 import { SEED_FOODS } from '../data/indianFoods';
-
-const nowIso = () => new Date().toISOString();
+import type { AlarmSpec } from '../native/plugins';
 
 /* ---------------- settings ---------------- */
 
@@ -27,10 +29,9 @@ const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   theme: 'system',
   weightUnit: 'kg',
+  heightUnit: 'cm',
   healthConnectEnabled: false,
-  futureLookCloudEnabled: false,
   lastWeeklySummaryFor: null,
-  pinnedNotificationEnabled: true,
   installedAt: nowIso(),
 };
 
@@ -39,28 +40,32 @@ export const settingsRepo = {
     const db = await getDb();
     const rows = await db.query<{ key: string; value: string }>(`SELECT key, value FROM settings`);
     const out: Settings = { ...DEFAULT_SETTINGS };
+    const bag = out as unknown as Record<string, unknown>;
     for (const r of rows) {
-      if (r.key === 'schema_version') continue;
-      if (r.key in out) {
-        try {
-          (out as unknown as Record<string, unknown>)[r.key] = JSON.parse(r.value);
-        } catch {
-          /* ignore */
-        }
+      if (!(r.key in out)) continue;
+      try {
+        bag[r.key] = JSON.parse(r.value);
+      } catch {
+        /* ignore malformed */
       }
     }
     return out;
   },
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     const db = await getDb();
-    await db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [key, JSON.stringify(value)]);
+    const now = nowIso();
+    await db.run(
+      `INSERT INTO settings (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [key, JSON.stringify(value), now, now],
+    );
   },
   async update(patch: Partial<Settings>): Promise<void> {
     for (const [k, v] of Object.entries(patch)) await this.set(k as keyof Settings, v as never);
   },
 };
 
-/* ---------------- profile ---------------- */
+/* ---------------- profile (+ supplements mirror) ---------------- */
 
 export const profileRepo = {
   async get(): Promise<Profile | null> {
@@ -75,10 +80,64 @@ export const profileRepo = {
   },
   async save(profile: Profile): Promise<void> {
     const db = await getDb();
-    await db.run(`INSERT OR REPLACE INTO profile (id, json, updated_at) VALUES (1, ?, ?)`, [
-      JSON.stringify(profile),
-      nowIso(),
-    ]);
+    const now = nowIso();
+    await db.run(
+      `INSERT INTO profile (id, json, created_at, updated_at) VALUES (1, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at`,
+      [JSON.stringify(profile), now, now],
+    );
+    await supplementRepo.syncFromProfile(profile.supplements);
+  },
+};
+
+export const supplementRepo = {
+  async all(): Promise<Supplement[]> {
+    const db = await getDb();
+    const rows = await db.query<{ id: string; name: string; dose: string; time: string; alarm: number }>(`SELECT * FROM supplements ORDER BY time`);
+    return rows.map((r) => ({ id: r.id, name: r.name, dose: r.dose, time: r.time, alarm: !!r.alarm }));
+  },
+  async syncFromProfile(supplements: Supplement[]): Promise<void> {
+    const db = await getDb();
+    const now = nowIso();
+    const keep = supplements.map((s) => s.id);
+    for (const s of supplements) {
+      await db.run(
+        `INSERT INTO supplements (id, name, dose, time, alarm, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, dose = excluded.dose, time = excluded.time, alarm = excluded.alarm, updated_at = excluded.updated_at`,
+        [s.id, s.name, s.dose, s.time, s.alarm ? 1 : 0, now, now],
+      );
+    }
+    if (keep.length) {
+      await db.run(`DELETE FROM supplements WHERE id NOT IN (${keep.map(() => '?').join(',')})`, keep);
+    } else {
+      await db.run(`DELETE FROM supplements`);
+    }
+  },
+  async logsOn(date: ISODate): Promise<SupplementLog[]> {
+    const db = await getDb();
+    const rows = await db.query<{ supplement_id: string; date: string; taken_at: string }>(`SELECT * FROM supplement_logs WHERE date = ?`, [date]);
+    return rows.map((r) => ({ supplementId: r.supplement_id, date: r.date, takenAt: r.taken_at }));
+  },
+  async logsFor(supplementId: string): Promise<SupplementLog[]> {
+    const db = await getDb();
+    const rows = await db.query<{ supplement_id: string; date: string; taken_at: string }>(
+      `SELECT * FROM supplement_logs WHERE supplement_id = ? ORDER BY date`,
+      [supplementId],
+    );
+    return rows.map((r) => ({ supplementId: r.supplement_id, date: r.date, takenAt: r.taken_at }));
+  },
+  async setTaken(supplementId: string, date: ISODate, taken: boolean): Promise<void> {
+    const db = await getDb();
+    if (!taken) {
+      await db.run(`DELETE FROM supplement_logs WHERE supplement_id = ? AND date = ?`, [supplementId, date]);
+      return;
+    }
+    const now = nowIso();
+    await db.run(
+      `INSERT INTO supplement_logs (supplement_id, date, taken_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(supplement_id, date) DO UPDATE SET taken_at = excluded.taken_at, updated_at = excluded.updated_at`,
+      [supplementId, date, now, now, now],
+    );
   },
 };
 
@@ -100,6 +159,14 @@ interface HabitRow {
   xp: number;
 }
 
+interface HabitLogRow {
+  habit_id: string;
+  date: string;
+  status: string;
+  note: string | null;
+  updated_at: string;
+}
+
 function rowToHabit(r: HabitRow): Habit {
   return {
     id: r.id,
@@ -112,18 +179,20 @@ function rowToHabit(r: HabitRow): Habit {
     reminderEnabled: !!r.reminder_enabled,
     pinned: !!r.pinned,
     archived: !!r.archived,
-    createdAt: r.created_at,
+    createdAt: r.created_at.slice(0, 10),
     sortOrder: r.sort_order,
     xp: r.xp,
   };
 }
 
+function rowToLog(r: HabitLogRow): HabitLog {
+  return { habitId: r.habit_id, date: r.date, status: r.status as HabitStatus, note: r.note ?? undefined, loggedAt: r.updated_at };
+}
+
 export const habitRepo = {
   async all(includeArchived = false): Promise<Habit[]> {
     const db = await getDb();
-    const rows = await db.query<HabitRow>(
-      `SELECT * FROM habits ${includeArchived ? '' : 'WHERE archived = 0'} ORDER BY sort_order, created_at`,
-    );
+    const rows = await db.query<HabitRow>(`SELECT * FROM habits ${includeArchived ? '' : 'WHERE archived = 0'} ORDER BY sort_order, created_at`);
     return rows.map(rowToHabit);
   },
   async get(id: string): Promise<Habit | null> {
@@ -133,9 +202,13 @@ export const habitRepo = {
   },
   async upsert(h: Habit): Promise<void> {
     const db = await getDb();
+    const now = nowIso();
     await db.run(
-      `INSERT OR REPLACE INTO habits (id, name, emoji, color, kind, schedule_json, reminder_time, reminder_enabled, pinned, archived, created_at, sort_order, xp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO habits (id, name, emoji, color, kind, schedule_json, reminder_time, reminder_enabled, pinned, archived, sort_order, xp, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, emoji = excluded.emoji, color = excluded.color, kind = excluded.kind,
+         schedule_json = excluded.schedule_json, reminder_time = excluded.reminder_time, reminder_enabled = excluded.reminder_enabled,
+         pinned = excluded.pinned, archived = excluded.archived, sort_order = excluded.sort_order, xp = excluded.xp, updated_at = excluded.updated_at`,
       [
         h.id,
         h.name,
@@ -147,9 +220,10 @@ export const habitRepo = {
         h.reminderEnabled ? 1 : 0,
         h.pinned ? 1 : 0,
         h.archived ? 1 : 0,
-        h.createdAt,
         h.sortOrder,
         h.xp,
+        h.createdAt,
+        now,
       ],
     );
   },
@@ -170,44 +244,15 @@ export const habitRepo = {
       where += ' AND date <= ?';
       params.push(to);
     }
-    const rows = await db.query<{ habit_id: string; date: string; status: string; note: string | null; logged_at: string }>(
-      `SELECT * FROM habit_logs WHERE ${where} ORDER BY date`,
-      params,
-    );
-    return rows.map((r) => ({
-      habitId: r.habit_id,
-      date: r.date,
-      status: r.status as HabitStatus,
-      note: r.note ?? undefined,
-      loggedAt: r.logged_at,
-    }));
+    return (await db.query<HabitLogRow>(`SELECT * FROM habit_logs WHERE ${where} ORDER BY date`, params)).map(rowToLog);
   },
   async logsBetween(from: ISODate, to: ISODate): Promise<HabitLog[]> {
     const db = await getDb();
-    const rows = await db.query<{ habit_id: string; date: string; status: string; note: string | null; logged_at: string }>(
-      `SELECT * FROM habit_logs WHERE date >= ? AND date <= ? ORDER BY date`,
-      [from, to],
-    );
-    return rows.map((r) => ({
-      habitId: r.habit_id,
-      date: r.date,
-      status: r.status as HabitStatus,
-      note: r.note ?? undefined,
-      loggedAt: r.logged_at,
-    }));
+    return (await db.query<HabitLogRow>(`SELECT * FROM habit_logs WHERE date >= ? AND date <= ? ORDER BY date`, [from, to])).map(rowToLog);
   },
   async allLogs(): Promise<HabitLog[]> {
     const db = await getDb();
-    const rows = await db.query<{ habit_id: string; date: string; status: string; note: string | null; logged_at: string }>(
-      `SELECT * FROM habit_logs ORDER BY date`,
-    );
-    return rows.map((r) => ({
-      habitId: r.habit_id,
-      date: r.date,
-      status: r.status as HabitStatus,
-      note: r.note ?? undefined,
-      loggedAt: r.logged_at,
-    }));
+    return (await db.query<HabitLogRow>(`SELECT * FROM habit_logs ORDER BY date`)).map(rowToLog);
   },
   async setLog(habitId: string, date: ISODate, status: HabitStatus | null, note?: string): Promise<void> {
     const db = await getDb();
@@ -215,43 +260,12 @@ export const habitRepo = {
       await db.run(`DELETE FROM habit_logs WHERE habit_id = ? AND date = ?`, [habitId, date]);
       return;
     }
+    const now = nowIso();
     await db.run(
-      `INSERT OR REPLACE INTO habit_logs (habit_id, date, status, note, logged_at) VALUES (?, ?, ?, ?, ?)`,
-      [habitId, date, status, note ?? null, nowIso()],
+      `INSERT INTO habit_logs (habit_id, date, status, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(habit_id, date) DO UPDATE SET status = excluded.status, note = excluded.note, updated_at = excluded.updated_at`,
+      [habitId, date, status, note ?? null, now, now],
     );
-  },
-};
-
-/* ---------------- supplements (definitions live in profile; logs here) ---------------- */
-
-export const supplementRepo = {
-  async logsOn(date: ISODate): Promise<SupplementLog[]> {
-    const db = await getDb();
-    const rows = await db.query<{ supplement_id: string; date: string; taken_at: string }>(
-      `SELECT * FROM supplement_logs WHERE date = ?`,
-      [date],
-    );
-    return rows.map((r) => ({ supplementId: r.supplement_id, date: r.date, takenAt: r.taken_at }));
-  },
-  async logsFor(supplementId: string): Promise<SupplementLog[]> {
-    const db = await getDb();
-    const rows = await db.query<{ supplement_id: string; date: string; taken_at: string }>(
-      `SELECT * FROM supplement_logs WHERE supplement_id = ? ORDER BY date`,
-      [supplementId],
-    );
-    return rows.map((r) => ({ supplementId: r.supplement_id, date: r.date, takenAt: r.taken_at }));
-  },
-  async setTaken(supplementId: string, date: ISODate, taken: boolean): Promise<void> {
-    const db = await getDb();
-    if (!taken) {
-      await db.run(`DELETE FROM supplement_logs WHERE supplement_id = ? AND date = ?`, [supplementId, date]);
-      return;
-    }
-    await db.run(`INSERT OR REPLACE INTO supplement_logs (supplement_id, date, taken_at) VALUES (?, ?, ?)`, [
-      supplementId,
-      date,
-      nowIso(),
-    ]);
   },
 };
 
@@ -265,51 +279,56 @@ export const waterRepo = {
   },
   async add(date: ISODate, ml: number): Promise<WaterLog> {
     const db = await getDb();
-    const log: WaterLog = { id: newId('wat'), date, ml, loggedAt: nowIso() };
-    await db.run(`INSERT INTO water_logs (id, date, ml, logged_at) VALUES (?, ?, ?, ?)`, [log.id, date, ml, log.loggedAt]);
+    const now = nowIso();
+    const log: WaterLog = { id: newId('wat'), date, ml, loggedAt: now };
+    await db.run(`INSERT INTO water_logs (id, date, ml, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, [log.id, date, ml, now, now]);
     return log;
   },
   async undoLast(date: ISODate): Promise<void> {
     const db = await getDb();
-    const rows = await db.query<{ id: string }>(`SELECT id FROM water_logs WHERE date = ? ORDER BY logged_at DESC LIMIT 1`, [date]);
+    const rows = await db.query<{ id: string }>(`SELECT id FROM water_logs WHERE date = ? ORDER BY created_at DESC LIMIT 1`, [date]);
     if (rows.length) await db.run(`DELETE FROM water_logs WHERE id = ?`, [rows[0].id]);
   },
   async dailyTotals(from: ISODate, to: ISODate): Promise<Map<ISODate, number>> {
     const db = await getDb();
-    const rows = await db.query<{ date: string; total: number }>(
-      `SELECT date, SUM(ml) as total FROM water_logs WHERE date >= ? AND date <= ? GROUP BY date`,
-      [from, to],
-    );
+    const rows = await db.query<{ date: string; total: number }>(`SELECT date, SUM(ml) as total FROM water_logs WHERE date >= ? AND date <= ? GROUP BY date`, [
+      from,
+      to,
+    ]);
     return new Map(rows.map((r) => [r.date, r.total]));
   },
 };
 
 /* ---------------- weight ---------------- */
 
+interface WeightRow {
+  id: string;
+  date: string;
+  kg: number;
+  created_at: string;
+}
+
 export const weightRepo = {
   async all(): Promise<WeightEntry[]> {
     const db = await getDb();
-    const rows = await db.query<{ id: string; date: string; kg: number; logged_at: string }>(
-      `SELECT * FROM weight_entries ORDER BY date, logged_at`,
-    );
-    return rows.map((r) => ({ id: r.id, date: r.date, kg: r.kg, loggedAt: r.logged_at }));
+    const rows = await db.query<WeightRow>(`SELECT * FROM weight_logs ORDER BY date, created_at`);
+    return rows.map((r) => ({ id: r.id, date: r.date, kg: r.kg, loggedAt: r.created_at }));
   },
   async latest(): Promise<WeightEntry | null> {
     const db = await getDb();
-    const rows = await db.query<{ id: string; date: string; kg: number; logged_at: string }>(
-      `SELECT * FROM weight_entries ORDER BY date DESC, logged_at DESC LIMIT 1`,
-    );
-    return rows.length ? { id: rows[0].id, date: rows[0].date, kg: rows[0].kg, loggedAt: rows[0].logged_at } : null;
+    const rows = await db.query<WeightRow>(`SELECT * FROM weight_logs ORDER BY date DESC, created_at DESC LIMIT 1`);
+    return rows.length ? { id: rows[0].id, date: rows[0].date, kg: rows[0].kg, loggedAt: rows[0].created_at } : null;
   },
   async add(date: ISODate, kg: number): Promise<WeightEntry> {
     const db = await getDb();
-    const e: WeightEntry = { id: newId('wt'), date, kg: Math.round(kg * 100) / 100, loggedAt: nowIso() };
-    await db.run(`INSERT INTO weight_entries (id, date, kg, logged_at) VALUES (?, ?, ?, ?)`, [e.id, e.date, e.kg, e.loggedAt]);
+    const now = nowIso();
+    const e: WeightEntry = { id: newId('wt'), date, kg: Math.round(kg * 100) / 100, loggedAt: now };
+    await db.run(`INSERT INTO weight_logs (id, date, kg, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, [e.id, e.date, e.kg, now, now]);
     return e;
   },
   async remove(id: string): Promise<void> {
     const db = await getDb();
-    await db.run(`DELETE FROM weight_entries WHERE id = ?`, [id]);
+    await db.run(`DELETE FROM weight_logs WHERE id = ?`, [id]);
   },
 };
 
@@ -350,20 +369,23 @@ function rowToFood(r: FoodRow): FoodItem {
 export const foodRepo = {
   async seedIfEmpty(): Promise<void> {
     const db = await getDb();
-    const rows = await db.query<{ n: number }>(`SELECT COUNT(*) as n FROM foods`);
+    const rows = await db.query<{ n: number }>(`SELECT COUNT(*) as n FROM food_items`);
     if ((rows[0]?.n ?? 0) > 0) return;
     for (const f of SEED_FOODS) await this.upsert(f);
   },
   async all(): Promise<FoodItem[]> {
     const db = await getDb();
-    const rows = await db.query<FoodRow>(`SELECT * FROM foods ORDER BY custom DESC, category, name`);
-    return rows.map(rowToFood);
+    return (await db.query<FoodRow>(`SELECT * FROM food_items ORDER BY custom DESC, category, name`)).map(rowToFood);
   },
   async upsert(f: FoodItem): Promise<void> {
     const db = await getDb();
+    const now = nowIso();
     await db.run(
-      `INSERT OR REPLACE INTO foods (id, name, name_local, category, serving_label, serving_grams, kcal, protein_g, carbs_g, fat_g, vegetarian, custom)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO food_items (id, name, name_local, category, serving_label, serving_grams, kcal, protein_g, carbs_g, fat_g, vegetarian, custom, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_local = excluded.name_local, category = excluded.category, serving_label = excluded.serving_label,
+         serving_grams = excluded.serving_grams, kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g, fat_g = excluded.fat_g,
+         vegetarian = excluded.vegetarian, custom = excluded.custom, updated_at = excluded.updated_at`,
       [
         f.id,
         f.name,
@@ -377,12 +399,14 @@ export const foodRepo = {
         f.fatG,
         f.vegetarian ? 1 : 0,
         f.custom ? 1 : 0,
+        now,
+        now,
       ],
     );
   },
   async remove(id: string): Promise<void> {
     const db = await getDb();
-    await db.run(`DELETE FROM foods WHERE id = ? AND custom = 1`, [id]);
+    await db.run(`DELETE FROM food_items WHERE id = ? AND custom = 1`, [id]);
   },
 };
 
@@ -398,7 +422,7 @@ interface MealRow {
   carbs_g: number;
   fat_g: number;
   outside_window: number;
-  logged_at: string;
+  created_at: string;
 }
 
 function rowToMeal(r: MealRow): MealLog {
@@ -414,27 +438,26 @@ function rowToMeal(r: MealRow): MealLog {
     carbsG: r.carbs_g,
     fatG: r.fat_g,
     outsideFastingWindow: !!r.outside_window,
-    loggedAt: r.logged_at,
+    loggedAt: r.created_at,
   };
 }
 
 export const mealRepo = {
   async on(date: ISODate): Promise<MealLog[]> {
     const db = await getDb();
-    const rows = await db.query<MealRow>(`SELECT * FROM meal_logs WHERE date = ? ORDER BY time`, [date]);
-    return rows.map(rowToMeal);
+    return (await db.query<MealRow>(`SELECT * FROM meal_logs WHERE date = ? ORDER BY time`, [date])).map(rowToMeal);
   },
   async between(from: ISODate, to: ISODate): Promise<MealLog[]> {
     const db = await getDb();
-    const rows = await db.query<MealRow>(`SELECT * FROM meal_logs WHERE date >= ? AND date <= ? ORDER BY date, time`, [from, to]);
-    return rows.map(rowToMeal);
+    return (await db.query<MealRow>(`SELECT * FROM meal_logs WHERE date >= ? AND date <= ? ORDER BY date, time`, [from, to])).map(rowToMeal);
   },
   async add(m: Omit<MealLog, 'id' | 'loggedAt'>): Promise<MealLog> {
     const db = await getDb();
-    const log: MealLog = { ...m, id: newId('meal'), loggedAt: nowIso() };
+    const now = nowIso();
+    const log: MealLog = { ...m, id: newId('meal'), loggedAt: now };
     await db.run(
-      `INSERT INTO meal_logs (id, date, time, food_id, food_name, servings, kcal, protein_g, carbs_g, fat_g, outside_window, logged_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meal_logs (id, date, time, food_id, food_name, servings, kcal, protein_g, carbs_g, fat_g, outside_window, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         log.id,
         log.date,
@@ -447,7 +470,8 @@ export const mealRepo = {
         log.carbsG,
         log.fatG,
         log.outsideFastingWindow ? 1 : 0,
-        log.loggedAt,
+        now,
+        now,
       ],
     );
     return log;
@@ -460,31 +484,34 @@ export const mealRepo = {
 
 /* ---------------- photos ---------------- */
 
+interface PhotoRow {
+  id: string;
+  path: string;
+  taken_at: string;
+  date: string;
+  weight_kg: number | null;
+  note: string;
+}
+
 export const photoRepo = {
   async all(): Promise<ProgressPhoto[]> {
     const db = await getDb();
-    const rows = await db.query<{ id: string; date: string; storage_key: string; weight_kg: number | null; note: string; created_at: string }>(
-      `SELECT * FROM photos ORDER BY date, created_at`,
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      date: r.date,
-      storageKey: r.storage_key,
-      weightKg: r.weight_kg,
-      note: r.note,
-      createdAt: r.created_at,
-    }));
+    const rows = await db.query<PhotoRow>(`SELECT * FROM photos ORDER BY taken_at`);
+    return rows.map((r) => ({ id: r.id, path: r.path, takenAt: r.taken_at, date: r.date, weightKg: r.weight_kg, note: r.note }));
   },
-  async add(p: Omit<ProgressPhoto, 'id' | 'createdAt'>): Promise<ProgressPhoto> {
+  async add(p: Omit<ProgressPhoto, 'id'>): Promise<ProgressPhoto> {
     const db = await getDb();
-    const photo: ProgressPhoto = { ...p, id: newId('ph'), createdAt: nowIso() };
-    await db.run(`INSERT INTO photos (id, date, storage_key, weight_kg, note, created_at) VALUES (?, ?, ?, ?, ?, ?)`, [
+    const now = nowIso();
+    const photo: ProgressPhoto = { ...p, id: newId('ph') };
+    await db.run(`INSERT INTO photos (id, path, taken_at, date, weight_kg, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
       photo.id,
+      photo.path,
+      photo.takenAt,
       photo.date,
-      photo.storageKey,
       photo.weightKg,
       photo.note,
-      photo.createdAt,
+      now,
+      now,
     ]);
     return photo;
   },
@@ -494,30 +521,83 @@ export const photoRepo = {
   },
 };
 
+/* ---------------- alarms mirror + notification log ---------------- */
+
+export const alarmRepo = {
+  async replaceAll(specs: AlarmSpec[]): Promise<void> {
+    const db = await getDb();
+    const now = nowIso();
+    await db.run(`DELETE FROM alarms`);
+    for (const a of specs) {
+      await db.run(
+        `INSERT INTO alarms (id, kind, ref_id, title, body, hour, minute, days_json, date, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [a.id, a.kind, a.refId, a.title, a.body, a.hour, a.minute, JSON.stringify(a.days), a.date ?? null, now, now],
+      );
+    }
+  },
+  async count(): Promise<number> {
+    const db = await getDb();
+    return (await db.query<{ n: number }>(`SELECT COUNT(*) as n FROM alarms`))[0]?.n ?? 0;
+  },
+};
+
+interface NotificationLogRow {
+  id: string;
+  kind: string;
+  ref_id: string;
+  scheduled_for: string;
+  body: string;
+  created_at: string;
+}
+
+export const notificationLogRepo = {
+  async since(isoTimestamp: string): Promise<NotificationLogEntry[]> {
+    const db = await getDb();
+    const rows = await db.query<NotificationLogRow>(`SELECT * FROM notification_log WHERE scheduled_for >= ? ORDER BY scheduled_for`, [isoTimestamp]);
+    return rows.map((r) => ({
+      id: r.id,
+      kind: r.kind as NotificationLogEntry['kind'],
+      refId: r.ref_id,
+      scheduledFor: r.scheduled_for,
+      body: r.body,
+      createdAt: r.created_at,
+    }));
+  },
+  async add(e: Omit<NotificationLogEntry, 'id' | 'createdAt'>): Promise<void> {
+    const db = await getDb();
+    const now = nowIso();
+    await db.run(`INSERT INTO notification_log (id, kind, ref_id, scheduled_for, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+      newId('nl'),
+      e.kind,
+      e.refId,
+      e.scheduledFor,
+      e.body,
+      now,
+      now,
+    ]);
+  },
+  async deleteFrom(isoTimestamp: string, kind: string): Promise<void> {
+    const db = await getDb();
+    await db.run(`DELETE FROM notification_log WHERE scheduled_for >= ? AND kind = ?`, [isoTimestamp, kind]);
+  },
+};
+
 /* ---------------- steps ---------------- */
 
 export const stepsRepo = {
   async on(date: ISODate): Promise<StepsEntry | null> {
     const db = await getDb();
-    const rows = await db.query<{ date: string; steps: number; source: string; updated_at: string }>(
-      `SELECT * FROM steps WHERE date = ?`,
-      [date],
-    );
-    return rows.length
-      ? { date: rows[0].date, steps: rows[0].steps, source: rows[0].source as StepsEntry['source'], updatedAt: rows[0].updated_at }
-      : null;
+    const rows = await db.query<{ date: string; steps: number; source: string; updated_at: string }>(`SELECT * FROM steps WHERE date = ?`, [date]);
+    return rows.length ? { date: rows[0].date, steps: rows[0].steps, source: rows[0].source as StepsEntry['source'], updatedAt: rows[0].updated_at } : null;
   },
   async set(date: ISODate, steps: number, source: StepsEntry['source']): Promise<void> {
     const db = await getDb();
-    await db.run(`INSERT OR REPLACE INTO steps (date, steps, source, updated_at) VALUES (?, ?, ?, ?)`, [date, steps, source, nowIso()]);
-  },
-  async between(from: ISODate, to: ISODate): Promise<StepsEntry[]> {
-    const db = await getDb();
-    const rows = await db.query<{ date: string; steps: number; source: string; updated_at: string }>(
-      `SELECT * FROM steps WHERE date >= ? AND date <= ? ORDER BY date`,
-      [from, to],
+    const now = nowIso();
+    await db.run(
+      `INSERT INTO steps (date, steps, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(date) DO UPDATE SET steps = excluded.steps, source = excluded.source, updated_at = excluded.updated_at`,
+      [date, steps, source, now, now],
     );
-    return rows.map((r) => ({ date: r.date, steps: r.steps, source: r.source as StepsEntry['source'], updatedAt: r.updated_at }));
   },
 };
 
@@ -542,50 +622,55 @@ export const summaryRepo = {
   },
   async upsert(s: WeeklySummary): Promise<void> {
     const db = await getDb();
+    const now = nowIso();
     await db.run(
-      `INSERT OR REPLACE INTO weekly_summaries (week_start, week_end, habits_pct, avg_water_ml, workouts_done, weight_delta_kg, avg_kcal, avg_protein_g, xp_earned, generated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [s.weekStart, s.weekEnd, s.habitsPct, s.avgWaterMl, s.workoutsDone, s.weightDeltaKg, s.avgKcal, s.avgProteinG, s.xpEarned, s.generatedAt],
+      `INSERT INTO weekly_summaries (week_start, week_end, habits_pct, avg_water_ml, workouts_done, weight_delta_kg, avg_kcal, avg_protein_g, xp_earned, generated_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(week_start) DO UPDATE SET week_end = excluded.week_end, habits_pct = excluded.habits_pct, avg_water_ml = excluded.avg_water_ml, workouts_done = excluded.workouts_done,
+         weight_delta_kg = excluded.weight_delta_kg, avg_kcal = excluded.avg_kcal, avg_protein_g = excluded.avg_protein_g, xp_earned = excluded.xp_earned, generated_at = excluded.generated_at, updated_at = excluded.updated_at`,
+      [s.weekStart, s.weekEnd, s.habitsPct, s.avgWaterMl, s.workoutsDone, s.weightDeltaKg, s.avgKcal, s.avgProteinG, s.xpEarned, s.generatedAt, now, now],
     );
   },
 };
 
-/* ---------------- xp ---------------- */
+/* ---------------- points ledger (XP) ---------------- */
 
-export const xpRepo = {
+export const pointsRepo = {
   async total(): Promise<number> {
     const db = await getDb();
-    const rows = await db.query<{ total: number | null }>(`SELECT SUM(amount) as total FROM xp_events`);
-    return rows[0]?.total ?? 0;
+    return (await db.query<{ total: number | null }>(`SELECT SUM(amount) as total FROM points_ledger`))[0]?.total ?? 0;
   },
   async totalOn(date: ISODate): Promise<number> {
     const db = await getDb();
-    const rows = await db.query<{ total: number | null }>(`SELECT SUM(amount) as total FROM xp_events WHERE date = ?`, [date]);
-    return rows[0]?.total ?? 0;
+    return (await db.query<{ total: number | null }>(`SELECT SUM(amount) as total FROM points_ledger WHERE date = ?`, [date]))[0]?.total ?? 0;
   },
   async totalBetween(from: ISODate, to: ISODate): Promise<number> {
     const db = await getDb();
-    const rows = await db.query<{ total: number | null }>(
-      `SELECT SUM(amount) as total FROM xp_events WHERE date >= ? AND date <= ?`,
-      [from, to],
+    return (
+      (await db.query<{ total: number | null }>(`SELECT SUM(amount) as total FROM points_ledger WHERE date >= ? AND date <= ?`, [from, to]))[0]?.total ?? 0
     );
-    return rows[0]?.total ?? 0;
   },
-  async add(date: ISODate, amount: number, reason: string): Promise<XpEvent> {
+  async add(date: ISODate, amount: number, reason: string): Promise<PointsEntry> {
     const db = await getDb();
-    const ev: XpEvent = { id: newId('xp'), date, amount, reason, loggedAt: nowIso() };
-    await db.run(`INSERT INTO xp_events (id, date, amount, reason, logged_at) VALUES (?, ?, ?, ?, ?)`, [
+    const now = nowIso();
+    const ev: PointsEntry = { id: newId('xp'), date, amount, reason, loggedAt: now };
+    await db.run(`INSERT INTO points_ledger (id, date, amount, reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, [
       ev.id,
       ev.date,
       ev.amount,
       ev.reason,
-      ev.loggedAt,
+      now,
+      now,
     ]);
     return ev;
+  },
+  async has(date: ISODate, reason: string): Promise<boolean> {
+    const db = await getDb();
+    return ((await db.query<{ n: number }>(`SELECT COUNT(*) as n FROM points_ledger WHERE date = ? AND reason = ?`, [date, reason]))[0]?.n ?? 0) > 0;
   },
   /** Remove XP previously granted for a reason on a date (used when un-ticking). */
   async revoke(date: ISODate, reason: string): Promise<void> {
     const db = await getDb();
-    await db.run(`DELETE FROM xp_events WHERE date = ? AND reason = ?`, [date, reason]);
+    await db.run(`DELETE FROM points_ledger WHERE date = ? AND reason = ?`, [date, reason]);
   },
 };

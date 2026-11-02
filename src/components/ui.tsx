@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { HHMM, Weekday } from '../types';
-import { WEEKDAY_LABELS } from '../logic/dates';
-import { useUiState } from '../store/appStore';
+import { WEEKDAY_LABELS } from '../utils/dates';
+import { useAppStore } from '../store/appStore';
+import { t } from '../i18n';
 
 export function Card({ children, className = '', title, action }: { children: ReactNode; className?: string; title?: string; action?: ReactNode }) {
   return (
@@ -57,7 +58,7 @@ export function WeekdayPicker({ value, onChange }: { value: Weekday[]; onChange:
             key={d}
             type="button"
             onClick={() => onChange(on ? value.filter((x) => x !== d) : [...value, d].sort())}
-            className={`h-9 flex-1 rounded-lg text-xs font-medium ${on ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
+            className={`h-12 flex-1 rounded-lg text-xs font-medium ${on ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
           >
             {WEEKDAY_LABELS[d].slice(0, 2)}
           </button>
@@ -67,7 +68,19 @@ export function WeekdayPicker({ value, onChange }: { value: Weekday[]; onChange:
   );
 }
 
-export function ProgressRing({ value, size = 64, stroke = 7, color = '#22a566', children }: { value: number; size?: number; stroke?: number; color?: string; children?: ReactNode }) {
+export function ProgressRing({
+  value,
+  size = 64,
+  stroke = 7,
+  color = '#22a566',
+  children,
+}: {
+  value: number;
+  size?: number;
+  stroke?: number;
+  color?: string;
+  children?: ReactNode;
+}) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = Math.min(1, Math.max(0, value));
@@ -92,7 +105,19 @@ export function ProgressRing({ value, size = 64, stroke = 7, color = '#22a566', 
   );
 }
 
-export function Modal({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
@@ -105,7 +130,7 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold">{title}</h3>
-          <button className="btn-ghost h-8 w-8 rounded-full p-0" onClick={onClose} aria-label="Close">
+          <button className="btn-ghost h-11 w-11 rounded-full p-0" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </div>
@@ -137,11 +162,37 @@ export function EmptyState({ emoji, title, body, action }: { emoji: string; titl
   );
 }
 
-/** Floating "+10 XP" burst and toast, driven by the global store. */
+const CONFETTI_COLORS = ['#22a566', '#f97316', '#8b5cf6', '#0ea5e9', '#eab308', '#e11d48'];
+
+/** Floating "+10 XP" burst, milestone confetti and toast, driven by the global store. */
 export function Overlays() {
-  const { xpBurst, toast } = useUiState();
+  const xpBurst = useAppStore((s) => s.xpBurst);
+  const confetti = useAppStore((s) => s.confetti);
+  const toast = useAppStore((s) => s.toast);
   return (
     <>
+      {confetti && (
+        <div key={confetti.id} className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-live="polite">
+          {Array.from({ length: 60 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${(i * 37) % 100}%`,
+                background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                animationDelay: `${(i % 10) * 60}ms`,
+                animationDuration: `${1800 + (i % 7) * 150}ms`,
+                transform: `rotate(${(i * 53) % 360}deg)`,
+              }}
+            />
+          ))}
+          <div className="absolute inset-x-0 top-1/3 flex justify-center">
+            <div className="rounded-2xl bg-white/95 px-5 py-3 text-lg font-bold text-slate-900 shadow-xl dark:bg-slate-800 dark:text-white">
+              {confetti.label}
+            </div>
+          </div>
+        </div>
+      )}
       {xpBurst && (
         <div
           key={xpBurst.id}
@@ -167,7 +218,19 @@ export function Overlays() {
 }
 
 /** Tick button with bounce animation; reports click position so the XP burst appears next to it. */
-export function TickButton({ done, onClick, color = '#22a566', size = 40, label }: { done: boolean; onClick: (anchor: { x: number; y: number }) => void; color?: string; size?: number; label?: string }) {
+export function TickButton({
+  done,
+  onClick,
+  color = '#22a566',
+  size = 48,
+  label,
+}: {
+  done: boolean;
+  onClick: (anchor: { x: number; y: number }) => void;
+  color?: string;
+  size?: number;
+  label?: string;
+}) {
   const [bounce, setBounce] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -179,7 +242,8 @@ export function TickButton({ done, onClick, color = '#22a566', size = 40, label 
     <button
       ref={ref}
       type="button"
-      aria-label={label ?? (done ? 'Mark not done' : 'Mark done')}
+      aria-label={label ?? (done ? t('common.markNotDone') : t('common.markDone'))}
+      data-testid="tick"
       aria-pressed={done}
       onClick={() => {
         setBounce(true);
@@ -196,7 +260,16 @@ export function TickButton({ done, onClick, color = '#22a566', size = 40, label 
       }}
     >
       {done ? (
-        <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width={size * 0.5}
+          height={size * 0.5}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M5 13l4 4L19 7" />
         </svg>
       ) : null}

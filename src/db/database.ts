@@ -1,8 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
+import { CURRENT_SCHEMA_VERSION, MIGRATIONS } from './migrations';
 
 const DB_NAME = 'fitsaathi';
-const SCHEMA_VERSION = 1;
 
 export interface Db {
   run(sql: string, params?: unknown[]): Promise<void>;
@@ -13,68 +13,29 @@ export interface Db {
   exportAll(): Promise<Record<string, Record<string, unknown>[]>>;
   importAll(dump: Record<string, Record<string, unknown>[]>): Promise<void>;
   wipe(): Promise<void>;
+  schemaVersion(): Promise<number>;
 }
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS profile (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS habits (
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, emoji TEXT NOT NULL, color TEXT NOT NULL, kind TEXT NOT NULL,
-  schedule_json TEXT NOT NULL, reminder_time TEXT, reminder_enabled INTEGER NOT NULL DEFAULT 0,
-  pinned INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0, xp INTEGER NOT NULL DEFAULT 10
-);
-CREATE TABLE IF NOT EXISTS habit_logs (
-  habit_id TEXT NOT NULL, date TEXT NOT NULL, status TEXT NOT NULL, note TEXT, logged_at TEXT NOT NULL,
-  PRIMARY KEY (habit_id, date)
-);
-CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(date);
-CREATE TABLE IF NOT EXISTS supplement_logs (
-  supplement_id TEXT NOT NULL, date TEXT NOT NULL, taken_at TEXT NOT NULL, PRIMARY KEY (supplement_id, date)
-);
-CREATE TABLE IF NOT EXISTS water_logs (id TEXT PRIMARY KEY, date TEXT NOT NULL, ml INTEGER NOT NULL, logged_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_water_date ON water_logs(date);
-CREATE TABLE IF NOT EXISTS weight_entries (id TEXT PRIMARY KEY, date TEXT NOT NULL, kg REAL NOT NULL, logged_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_weight_date ON weight_entries(date);
-CREATE TABLE IF NOT EXISTS foods (
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, name_local TEXT, category TEXT NOT NULL, serving_label TEXT NOT NULL,
-  serving_grams REAL NOT NULL, kcal REAL NOT NULL, protein_g REAL NOT NULL, carbs_g REAL NOT NULL, fat_g REAL NOT NULL,
-  vegetarian INTEGER NOT NULL DEFAULT 1, custom INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS meal_logs (
-  id TEXT PRIMARY KEY, date TEXT NOT NULL, time TEXT NOT NULL, food_id TEXT NOT NULL, food_name TEXT NOT NULL,
-  servings REAL NOT NULL, kcal REAL NOT NULL, protein_g REAL NOT NULL, carbs_g REAL NOT NULL, fat_g REAL NOT NULL,
-  outside_window INTEGER NOT NULL DEFAULT 0, logged_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_meal_date ON meal_logs(date);
-CREATE TABLE IF NOT EXISTS photos (
-  id TEXT PRIMARY KEY, date TEXT NOT NULL, storage_key TEXT NOT NULL, weight_kg REAL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS steps (date TEXT PRIMARY KEY, steps INTEGER NOT NULL, source TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS weekly_summaries (
-  week_start TEXT PRIMARY KEY, week_end TEXT NOT NULL, habits_pct REAL NOT NULL, avg_water_ml REAL NOT NULL,
-  workouts_done INTEGER NOT NULL, weight_delta_kg REAL, avg_kcal REAL, avg_protein_g REAL, xp_earned INTEGER NOT NULL DEFAULT 0,
-  generated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS xp_events (id TEXT PRIMARY KEY, date TEXT NOT NULL, amount INTEGER NOT NULL, reason TEXT NOT NULL, logged_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_xp_date ON xp_events(date);
-`;
 
 export const TABLES = [
   'settings',
   'profile',
   'habits',
   'habit_logs',
+  'supplements',
   'supplement_logs',
   'water_logs',
-  'weight_entries',
-  'foods',
+  'weight_logs',
+  'food_items',
   'meal_logs',
   'photos',
+  'alarms',
+  'notification_log',
   'steps',
+  'points_ledger',
   'weekly_summaries',
-  'xp_events',
 ] as const;
+
+export type TableName = (typeof TABLES)[number];
 
 let dbPromise: Promise<Db> | null = null;
 
@@ -120,6 +81,11 @@ class SqliteDb implements Db {
     }
   }
 
+  async schemaVersion(): Promise<number> {
+    const rows = await this.query<{ v: number | null }>(`SELECT MAX(version) as v FROM schema_migrations`);
+    return rows[0]?.v ?? 0;
+  }
+
   async exportAll(): Promise<Record<string, Record<string, unknown>[]>> {
     const out: Record<string, Record<string, unknown>[]> = {};
     for (const t of TABLES) out[t] = await this.query(`SELECT * FROM ${t}`);
@@ -131,13 +97,11 @@ class SqliteDb implements Db {
     try {
       for (const t of TABLES) {
         await this.conn.run(`DELETE FROM ${t}`, [], false);
-        const rows = dump[t] ?? [];
-        for (const row of rows) {
-          const cols = Object.keys(row);
+        for (const row of dump[t] ?? []) {
+          const cols = Object.keys(row).filter((c) => /^[a-z_]+$/.test(c));
           if (!cols.length) continue;
-          const placeholders = cols.map(() => '?').join(',');
           await this.conn.run(
-            `INSERT OR REPLACE INTO ${t} (${cols.join(',')}) VALUES (${placeholders})`,
+            `INSERT OR REPLACE INTO ${t} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`,
             cols.map((c) => row[c]) as never[],
             false,
           );
@@ -158,9 +122,18 @@ class SqliteDb implements Db {
   }
 }
 
+async function migrate(conn: SQLiteDBConnection): Promise<void> {
+  await conn.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`, false);
+  const applied = new Set(((await conn.query(`SELECT version FROM schema_migrations`)).values ?? []).map((r) => (r as { version: number }).version));
+  for (const m of MIGRATIONS) {
+    if (applied.has(m.version)) continue;
+    await conn.execute(m.sql, false);
+    await conn.run(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`, [m.version, m.name, new Date().toISOString()], false);
+  }
+}
+
 async function openDb(): Promise<Db> {
-  const platform = Capacitor.getPlatform();
-  const isWeb = platform === 'web';
+  const isWeb = Capacitor.getPlatform() === 'web';
   const sqlite = new SQLiteConnection(CapacitorSQLite);
 
   if (isWeb) {
@@ -178,11 +151,10 @@ async function openDb(): Promise<Db> {
   const conn =
     consistency.result && isConn
       ? await sqlite.retrieveConnection(DB_NAME, false)
-      : await sqlite.createConnection(DB_NAME, false, 'no-encryption', SCHEMA_VERSION, false);
+      : await sqlite.createConnection(DB_NAME, false, 'no-encryption', CURRENT_SCHEMA_VERSION, false);
   await conn.open();
-  await conn.execute(SCHEMA, false);
+  await migrate(conn);
   const db = new SqliteDb(conn, sqlite, isWeb);
-  await db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', ?)`, [String(SCHEMA_VERSION)]);
   await db.persist();
   return db;
 }

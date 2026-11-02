@@ -16,6 +16,7 @@ import { ensureWeeklySummaries } from './services/weekly';
 import { applyNativeAction, consumePendingActions, syncNative } from './services/sync';
 import { FitAlarms } from './native/plugins';
 import { refreshSteps } from './services/health';
+import { t } from './i18n';
 
 function applyTheme(theme: Settings['theme']) {
   const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -49,7 +50,7 @@ export default function App() {
         }
       } catch (e) {
         console.error(e);
-        setError((e as Error).message);
+        setError(e instanceof Error ? e.message : String(e));
       }
     })();
   }, []);
@@ -95,7 +96,7 @@ export default function App() {
     return (
       <div className="flex h-full flex-col items-center justify-center p-6 text-center">
         <div className="text-3xl">⚠️</div>
-        <h1 className="mt-2 font-semibold">Could not open the local database</h1>
+        <h1 className="mt-2 font-semibold">{t('errors.dbTitle')}</h1>
         <p className="mt-1 text-sm text-slate-500">{error}</p>
       </div>
     );

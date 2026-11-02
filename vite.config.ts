@@ -10,12 +10,16 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2020',
     sourcemap: false,
+    chunkSizeWarningLimit: 1200,
   },
   optimizeDeps: {
     exclude: ['jeep-sqlite/loader'],
   },
   test: {
     environment: 'node',
-    include: ['src/tests/**/*.test.ts'],
+    include: ['src/tests/**/*.test.{ts,tsx}'],
+    environmentMatchGlobs: [['src/tests/**/*.test.tsx', 'jsdom']],
+    setupFiles: ['src/tests/setup.ts'],
+    css: false,
   },
 });

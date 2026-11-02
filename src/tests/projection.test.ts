@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTrendSeries, movingAverage7, projectToTarget, regressionSlope } from '../logic/projection';
+import { buildTrendSeries, movingAverage7, projectToTarget, regressionSlope } from '../utils/projection';
 import type { WeightEntry } from '../types';
 
 const w = (date: string, kg: number): WeightEntry => ({ id: date, date, kg, loggedAt: `${date}T07:00:00Z` });

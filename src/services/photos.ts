@@ -1,8 +1,8 @@
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { photoRepo, xpRepo } from '../db/repos';
+import { photoRepo, pointsRepo } from '../db/repos';
 import { FitSecurePhotos } from '../native/plugins';
-import { todayISO } from '../logic/dates';
-import { XP } from '../logic/xp';
+import { nowIso, todayISO } from '../utils/dates';
+import { XP } from '../utils/xp';
 import { notifyChange, showXp } from '../store/appStore';
 import type { ProgressPhoto } from '../types';
 
@@ -21,26 +21,26 @@ export async function captureProgressPhoto(weightKg: number | null, note: string
   if (!photo.base64String) return null;
   const { key } = await FitSecurePhotos.save({ base64: photo.base64String });
   const date = todayISO();
-  const rec = await photoRepo.add({ date, storageKey: key, weightKg, note });
-  await xpRepo.add(date, XP.photoAdded, `photo:${rec.id}`);
+  const rec = await photoRepo.add({ date, path: key, takenAt: nowIso(), weightKg, note });
+  await pointsRepo.add(date, XP.photoAdded, `photo:${rec.id}`);
   showXp(XP.photoAdded);
   notifyChange();
   return rec;
 }
 
-export async function loadPhotoDataUrl(storageKey: string): Promise<string> {
-  const cached = cache.get(storageKey);
+export async function loadPhotoDataUrl(path: string): Promise<string> {
+  const cached = cache.get(path);
   if (cached) return cached;
-  const { base64 } = await FitSecurePhotos.load({ key: storageKey });
+  const { base64 } = await FitSecurePhotos.load({ key: path });
   const url = `data:image/jpeg;base64,${base64}`;
-  cache.set(storageKey, url);
+  cache.set(path, url);
   return url;
 }
 
 export async function deletePhoto(p: ProgressPhoto): Promise<void> {
-  await FitSecurePhotos.remove({ key: p.storageKey }).catch(() => undefined);
+  await FitSecurePhotos.remove({ key: p.path }).catch(() => undefined);
   await photoRepo.remove(p.id);
-  await xpRepo.revoke(p.date, `photo:${p.id}`);
-  cache.delete(p.storageKey);
+  await pointsRepo.revoke(p.date, `photo:${p.id}`);
+  cache.delete(p.path);
   notifyChange();
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android auto-backup rules (allowBackup is false; these rules are belt-and-braces). Photos never leave the device. -->
+<full-backup-content>
+    <exclude domain="file" path="photos" />
+    <exclude domain="sharedpref" path="fitsaathi_pending.xml" />
+</full-backup-content>

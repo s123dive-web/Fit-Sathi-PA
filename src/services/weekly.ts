@@ -1,11 +1,11 @@
 import type { Habit, HabitLog, ISODate, WeeklySummary } from '../types';
-import { habitRepo, mealRepo, settingsRepo, summaryRepo, waterRepo, weightRepo, xpRepo } from '../db/repos';
-import { addDays, todayISO, weekStart } from '../logic/dates';
-import { completionStats } from '../logic/habitStrength';
-import { dailyWeights } from '../logic/projection';
+import { habitRepo, mealRepo, pointsRepo, settingsRepo, summaryRepo, waterRepo, weightRepo } from '../db/repos';
+import { addDays, nowIso, todayISO, weekStart } from '../utils/dates';
+import { completionStats } from '../utils/habitStrength';
+import { dailyWeights } from '../utils/projection';
 import { notifyChange } from '../store/appStore';
 
-/** Compute a summary for one closed week [start, start+6]. Pure except for repo reads. */
+/** Compute a summary for one week [start, start+6]. */
 export async function computeWeeklySummary(start: ISODate, habits: Habit[], allLogs: HabitLog[]): Promise<WeeklySummary> {
   const end = addDays(start, 6);
   let scheduled = 0;
@@ -40,7 +40,7 @@ export async function computeWeeklySummary(start: ISODate, habits: Habit[], allL
   const mealDays = new Set(meals.map((m) => m.date)).size;
   const avgKcal = mealDays ? Math.round(meals.reduce((a, m) => a + m.kcal, 0) / mealDays) : null;
   const avgProteinG = mealDays ? Math.round(meals.reduce((a, m) => a + m.proteinG, 0) / mealDays) : null;
-  const xpEarned = await xpRepo.totalBetween(start, end);
+  const xpEarned = await pointsRepo.totalBetween(start, end);
 
   return {
     weekStart: start,
@@ -52,13 +52,13 @@ export async function computeWeeklySummary(start: ISODate, habits: Habit[], allL
     avgKcal,
     avgProteinG,
     xpEarned,
-    generatedAt: new Date().toISOString(),
+    generatedAt: nowIso(),
   };
 }
 
 /**
- * Generate summaries for every closed week since the first habit / weight was recorded.
- * Runs on app start; the card for the latest closed week appears automatically every Sunday night / Monday.
+ * Generate summaries for every closed week since the first data point. Runs on app start / resume,
+ * so the card for the latest closed week appears automatically once Sunday is over.
  */
 export async function ensureWeeklySummaries(): Promise<void> {
   const today = todayISO();
@@ -89,7 +89,7 @@ export async function ensureWeeklySummaries(): Promise<void> {
   if (changed) notifyChange();
 }
 
-/** Live (in-progress) summary for the current week, for the Progress screen. */
+/** Live (in-progress) summary for the current week. */
 export async function currentWeekSummary(): Promise<WeeklySummary> {
   const habits = await habitRepo.all(true);
   const logs = await habitRepo.allLogs();

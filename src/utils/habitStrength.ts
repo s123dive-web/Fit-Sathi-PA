@@ -24,12 +24,7 @@ export interface StrengthResult {
   percent: number; // 0..100
 }
 
-export function computeStrength(
-  schedule: HabitSchedule,
-  logs: HabitLog[],
-  createdAt: ISODate,
-  today: ISODate,
-): StrengthResult {
+export function computeStrength(schedule: HabitSchedule, logs: HabitLog[], createdAt: ISODate, today: ISODate): StrengthResult {
   if (today < createdAt) return { score: 0, percent: 0 };
   const m = multiplier(schedule);
   const byDate = new Map<ISODate, HabitStatus>();
@@ -90,12 +85,7 @@ export interface StreakResult {
  * - daily / weekdays: consecutive scheduled days marked done.
  * - times_per_week: consecutive weeks meeting the target (current week counts once met).
  */
-export function computeStreaks(
-  schedule: HabitSchedule,
-  logs: HabitLog[],
-  createdAt: ISODate,
-  today: ISODate,
-): StreakResult {
+export function computeStreaks(schedule: HabitSchedule, logs: HabitLog[], createdAt: ISODate, today: ISODate): StreakResult {
   const byDate = new Map<ISODate, HabitStatus>();
   for (const l of logs) byDate.set(l.date, l.status);
 
@@ -128,7 +118,8 @@ export function computeStreaks(
     for (let i = weeks.length - 1; i >= 0; i -= 1) {
       const w = weeks[i];
       if (w.done >= target) current += 1;
-      else if (!w.closed) continue; // current week not yet met: look at previous weeks
+      else if (!w.closed)
+        continue; // current week not yet met: look at previous weeks
       else break;
     }
     return { current, best, unit: 'weeks' };
@@ -176,12 +167,7 @@ export interface CompletionStats {
   percent: number; // done / (scheduled - skipped)
 }
 
-export function completionStats(
-  schedule: HabitSchedule,
-  logs: HabitLog[],
-  from: ISODate,
-  to: ISODate,
-): CompletionStats {
+export function completionStats(schedule: HabitSchedule, logs: HabitLog[], from: ISODate, to: ISODate): CompletionStats {
   const byDate = new Map<ISODate, HabitStatus>();
   for (const l of logs) byDate.set(l.date, l.status);
   let scheduled = 0;

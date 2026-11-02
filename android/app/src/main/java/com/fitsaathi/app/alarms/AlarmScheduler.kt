@@ -36,6 +36,10 @@ object AlarmScheduler {
     fun schedule(ctx: Context, spec: AlarmSpec, atMillis: Long = spec.nextTriggerMillis(), snooze: Boolean = false) {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pendingIntent(ctx, spec, snooze)
+        if (spec.isOneShot && atMillis <= System.currentTimeMillis() && !snooze) {
+            am.cancel(pi) // one-shot already in the past: nothing to arm
+            return
+        }
         try {
             when {
                 canScheduleExact(ctx) && spec.alarmClock -> {
@@ -67,10 +71,14 @@ object AlarmScheduler {
         for (oldId in AlarmStore.scheduledIds(ctx) - current) {
             cancel(ctx, AlarmSpec(oldId, "habit", "", "", "", 0, 0, emptyList(), emptyList(), false))
         }
-        for (spec in specs) schedule(ctx, spec)
+        // Prune one-shot alarms that are already in the past (yesterday's motivational slots).
+        val now = System.currentTimeMillis()
+        val live = specs.filter { !it.isOneShot || it.nextTriggerMillis(now) > now }
+        if (live.size != specs.size) AlarmStore.save(ctx, live)
+        for (spec in live) schedule(ctx, spec)
         AlarmStore.saveScheduledIds(ctx, current)
-        Log.i(TAG, "Scheduled ${specs.size} alarms (exact=${canScheduleExact(ctx)})")
-        return specs.size
+        Log.i(TAG, "Scheduled ${live.size} alarms (exact=${canScheduleExact(ctx)})")
+        return live.size
     }
 
     fun snooze(ctx: Context, spec: AlarmSpec, minutes: Int = 10) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completionStats, computeStreaks, computeStrength, multiplier } from '../logic/habitStrength';
+import { completionStats, computeStreaks, computeStrength, multiplier } from '../utils/habitStrength';
 import type { HabitLog } from '../types';
 
 const log = (date: string, status: HabitLog['status']): HabitLog => ({ habitId: 'h', date, status, loggedAt: `${date}T08:00:00Z` });

@@ -120,10 +120,7 @@ export function buildTrendSeries(entries: WeightEntry[], targetKg: number, today
   const byDate = new Map(pts.map((p) => [p.date, p.kg]));
   const first = pts[0].date;
   const lastActual = pts[pts.length - 1].date;
-  const horizonEnd =
-    proj.status === 'on_track' && proj.etaDate
-      ? proj.etaDate
-      : addDays(lastActual, proj.slopeKgPerDay !== null ? 30 : 0);
+  const horizonEnd = proj.status === 'on_track' && proj.etaDate ? proj.etaDate : addDays(lastActual, proj.slopeKgPerDay !== null ? 30 : 0);
   const end = horizonEnd > lastActual ? horizonEnd : lastActual;
   const anchor = proj.latestMa7 ?? pts[pts.length - 1].kg;
   const series: TrendPoint[] = [];
