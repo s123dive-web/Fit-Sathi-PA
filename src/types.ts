@@ -223,6 +223,14 @@ export interface Settings {
   healthConnectEnabled: boolean;
   lastWeeklySummaryFor: ISODate | null;
   installedAt: string;
+  /** App lock */
+  appLockEnabled: boolean;
+  pinHash: string | null;
+  pinSalt: string | null;
+  biometricEnabled: boolean;
+  lockTimeoutSec: number;
+  failedAttempts: number;
+  lockoutUntil: string | null; // ISO timestamp
 }
 
 export interface PendingNativeAction {

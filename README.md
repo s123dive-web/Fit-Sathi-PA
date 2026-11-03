@@ -102,6 +102,7 @@ sample/suresh_profile.json  prefilled sample profile
 | 6 | Exact alarms (AlarmManager `setExactAndAllowWhileIdle` / `setAlarmClock`), `SCHEDULE_EXACT_ALARM` handling, reboot + update persistence, per-supplement alarms, daily workout alarm, fasting warning 30 min before close, full-screen intent + sound + vibration, snooze 10 min, Done from the notification, 2×/day motivational messages from 64 templates rotating without repeats in 14 days, every channel toggleable | `services/sync.ts` (`buildAlarms`, `buildMotivationAlarms`), `utils/quotes.ts`, `android/.../alarms/*` |
 | 7 | Encrypted backup (AES-256-GCM, passphrase) via the system document picker (user can choose Google Drive); restore with schema-version check; no API keys, no OAuth, nothing uploaded by the app | `services/backup.ts`, `utils/crypto.ts`, `FitBackupPlugin.kt` |
 | 8 | Settings: theme, units, every notification channel, pinned notification, Drive toggle, Health Connect, erase data | `screens/ProfileScreen.tsx` |
+| 8b | App lock: 4-digit PIN (salted PBKDF2 hash), fingerprint/face unlock via BiometricPrompt, auto-lock timeout, cooldowns after wrong attempts, forgot-PIN reset | `screens/LockScreen.tsx`, `services/security.ts`, `utils/pin.ts`, `FitBiometricPlugin.kt` |
 | 9 | Data model with created_at/updated_at on every table, versioned SQL migrations | `db/migrations/001_initial.sql`, `db/database.ts` |
 | 10 | TS strict, ESLint + Prettier, no `any`, Zustand, Recharts, date-fns, Vitest + RTL, folder layout | `eslint.config.js`, `.prettierrc`, `store/appStore.ts`, `tests/` |
 
@@ -146,6 +147,7 @@ All five plugins are declared in `src/native/plugins.ts` and implemented in Kotl
 | `FitHealthConnect` | `isAvailable`, `hasPermission`, `requestPermission`, `readSteps({date})` | Read-only `READ_STEPS`. Graceful statuses: `not_installed`, `update_required`, `unsupported`, permission denied. |
 | `FitSecurePhotos` | `save({base64})`, `load({key})`, `remove({key})` | AES-256-GCM with a non-exportable Android Keystore key, files in `filesDir/photos`. `allowBackup=false` so photos are never backed up off-device. |
 | `FitBackup` | `saveDocument({filename,mimeType,data})`, `openDocument({mimeTypes})` | `ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`. |
+| `FitBiometric` | `isAvailable`, `authenticate({title,subtitle,negativeButton})` | androidx `BiometricPrompt` (strong or weak biometrics); the in-app PIN is the fallback. Web reports `unavailable`. |
 
 Web fallbacks (`src/native/web.ts`): in-page timers + Notification API, WebCrypto AES-GCM in IndexedDB,
 download / file input. Health Connect reports `unsupported`.
@@ -180,6 +182,14 @@ SDK in Android Studio; it is not compiled by `npm run build` and was not compile
 produced this repo (see `docs/DEVIATIONS.md`). Device checks are scripted in `docs/ALARM_TEST.md`.
 
 ---
+
+## App lock
+
+Profile → **Security** → *App lock (4-digit PIN)*. Set and confirm the PIN; the app then asks for it on every
+launch and after the chosen auto-lock timeout. Turn on *Fingerprint / face unlock* (after confirming the PIN)
+to unlock with the phone's biometrics; the PIN keypad is always available as fallback. Wrong PINs trigger
+cooldowns (30 s after 5, 5 min after 8, 30 min after 10). There is no account, so *Forgot PIN?* can only erase
+the device data and start again (a backup can be restored afterwards).
 
 ## Privacy
 

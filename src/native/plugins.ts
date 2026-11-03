@@ -107,3 +107,17 @@ export interface FitBackupPlugin {
 export const FitBackup = registerPlugin<FitBackupPlugin>('FitBackup', {
   web: () => import('./web').then((m) => new m.FitBackupWeb()),
 });
+
+/* ---------------------------- FitBiometric ---------------------------- */
+
+export type BiometricStatus = 'available' | 'none_enrolled' | 'no_hardware' | 'unavailable';
+
+export interface FitBiometricPlugin {
+  isAvailable(): Promise<{ available: boolean; status: BiometricStatus }>;
+  /** Shows the system fingerprint / face prompt. Resolves { success: false, reason } on cancel or failure. */
+  authenticate(options: { title: string; subtitle?: string; negativeButton?: string }): Promise<{ success: boolean; reason?: string }>;
+}
+
+export const FitBiometric = registerPlugin<FitBiometricPlugin>('FitBiometric', {
+  web: () => import('./web').then((m) => new m.FitBiometricWeb()),
+});

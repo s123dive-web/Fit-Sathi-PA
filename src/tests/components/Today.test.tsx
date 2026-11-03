@@ -60,6 +60,13 @@ const settings: Settings = {
   healthConnectEnabled: false,
   lastWeeklySummaryFor: null,
   installedAt: '',
+  appLockEnabled: false,
+  pinHash: null,
+  pinSalt: null,
+  biometricEnabled: false,
+  lockTimeoutSec: 60,
+  failedAttempts: 0,
+  lockoutUntil: null,
 };
 
 describe('<Today />', () => {

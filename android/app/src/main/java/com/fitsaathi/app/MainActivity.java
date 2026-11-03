@@ -4,6 +4,7 @@ import android.os.Bundle;
 
 import com.fitsaathi.app.plugins.FitAlarmsPlugin;
 import com.fitsaathi.app.plugins.FitBackupPlugin;
+import com.fitsaathi.app.plugins.FitBiometricPlugin;
 import com.fitsaathi.app.plugins.FitHealthConnectPlugin;
 import com.fitsaathi.app.plugins.FitSecurePhotosPlugin;
 import com.fitsaathi.app.plugins.FitWidgetPlugin;
@@ -17,6 +18,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FitHealthConnectPlugin.class);
         registerPlugin(FitSecurePhotosPlugin.class);
         registerPlugin(FitBackupPlugin.class);
+        registerPlugin(FitBiometricPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

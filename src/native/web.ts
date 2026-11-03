@@ -11,6 +11,7 @@ import type {
   AlarmSpec,
   FitAlarmsPlugin,
   FitBackupPlugin,
+  FitBiometricPlugin,
   FitHealthConnectPlugin,
   FitSecurePhotosPlugin,
   FitWidgetPlugin,
@@ -232,5 +233,14 @@ export class FitBackupWeb extends WebPlugin implements FitBackupPlugin {
       input.oncancel = () => resolve({ data: null, name: null });
       input.click();
     });
+  }
+}
+
+export class FitBiometricWeb extends WebPlugin implements FitBiometricPlugin {
+  async isAvailable() {
+    return { available: false, status: 'unavailable' as const };
+  }
+  async authenticate() {
+    return { success: false, reason: 'unavailable' };
   }
 }

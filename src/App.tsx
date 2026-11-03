@@ -4,6 +4,8 @@ import type { Profile, Settings } from './types';
 import { foodRepo, profileRepo, settingsRepo } from './db/repos';
 import { getDb } from './db/database';
 import { useRevision } from './store/appStore';
+import { useLockStore } from './store/lockStore';
+import { LockScreen } from './screens/LockScreen';
 import { Overlays, Spinner } from './components/ui';
 import { TabBar, type Tab } from './components/TabBar';
 import { Onboarding } from './screens/Onboarding';
@@ -26,6 +28,7 @@ function applyTheme(theme: Settings['theme']) {
 
 export default function App() {
   const revision = useRevision();
+  const locked = useLockStore((s) => s.locked);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -41,6 +44,7 @@ export default function App() {
         setProfile(p);
         setSettings(s);
         applyTheme(s.theme);
+        useLockStore.getState().initialize(s.onboarded && s.appLockEnabled);
         setReady(true);
         if (s.onboarded) {
           await consumePendingActions();
@@ -80,6 +84,14 @@ export default function App() {
     let actionHandle: { remove: () => void } | null = null;
     (async () => {
       handle = await CapApp.addListener('appStateChange', async ({ isActive }) => {
+        if (!isActive) {
+          useLockStore.getState().onBackground();
+          return;
+        }
+        {
+          const s = await settingsRepo.get();
+          useLockStore.getState().onForeground(s.onboarded && s.appLockEnabled, s.lockTimeoutSec);
+        }
         if (isActive) {
           await consumePendingActions();
           await ensureWeeklySummaries();
@@ -89,9 +101,19 @@ export default function App() {
       });
       actionHandle = await FitAlarms.addListener('action', (a) => void applyNativeAction(a));
     })();
+    // Web / browser preview: mirror background & foreground through the Page Visibility API.
+    const onVis = async () => {
+      if (document.visibilityState === 'hidden') useLockStore.getState().onBackground();
+      else {
+        const s = await settingsRepo.get();
+        useLockStore.getState().onForeground(s.onboarded && s.appLockEnabled, s.lockTimeoutSec);
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       handle?.remove();
       actionHandle?.remove();
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
 
@@ -110,6 +132,15 @@ export default function App() {
     return (
       <>
         <Onboarding existing={profile} />
+        <Overlays />
+      </>
+    );
+  }
+
+  if (settings.appLockEnabled && locked) {
+    return (
+      <>
+        <LockScreen settings={settings} name={profile.user.name.split(' ')[0]} />
         <Overlays />
       </>
     );

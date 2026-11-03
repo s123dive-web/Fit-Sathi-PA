@@ -99,6 +99,14 @@ Each line names the file(s) that implement it.
 73. BLOCKED — Capacitor Android project checked in; Gradle `assembleDebug` / `assembleRelease` not run here (no Android SDK, Google download host blocked). `android/`, DEVIATIONS.md #1
 74. DONE — Folder layout `/src/{screens,components,db,store,services,data,schema,utils,i18n}`, `/android`, `/sample`, `/docs`.
 
+## 11. App lock (added 2026-11-03 on request)
+81. DONE — 4-digit PIN lock: set / confirm, change (after verifying current), disable (after verifying). PIN stored only as PBKDF2-SHA256 hash + salt. `src/utils/pin.ts`, `src/services/security.ts`, `src/components/PinDialog.tsx`, `src/screens/ProfileScreen.tsx` (Security card)
+82. DONE — Fingerprint / face unlock via androidx BiometricPrompt, opt-in after PIN verification; PIN always remains the fallback. `android/.../plugins/FitBiometricPlugin.kt`, `src/screens/LockScreen.tsx`
+83. DONE — Lock on launch and after a configurable background timeout (immediately / 1 / 5 / 15 min); content hidden behind the lock screen. `src/store/lockStore.ts`, `src/App.tsx`
+84. DONE — Brute-force cooldowns: 5 wrong → 30 s, 8 → 5 min, 10+ → 30 min; attempts persisted. `src/services/security.ts` (`attemptPin`)
+85. DONE — "Forgot PIN" path: erase all data and start again (no account to recover from), with confirmation. `src/screens/LockScreen.tsx`
+86. DONE — Tests: PIN hashing/verification, cooldown schedule, lock store timing, LockScreen wrong/right PIN and cooldown. `src/tests/pin.test.ts`, `src/tests/components/LockScreen.test.tsx`
+
 ## Execution plan artefacts
 75. DONE — `/docs/REQUIREMENTS.md` (this file).
 76. BLOCKED — `/docs/ALARM_TEST.md`: procedure written; results require a device/emulator. DEVIATIONS.md #1

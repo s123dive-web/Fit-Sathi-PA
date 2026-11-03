@@ -9,7 +9,10 @@ import { ProfileImport } from '../components/ProfileImport';
 import { exportProfileJson, habitsFromProfile, habitsToProfile, validateProfile } from '../utils/profile';
 import { nutritionTargets } from '../utils/nutrition';
 import { bmi, formatHeight, formatWeight } from '../utils/units';
-import { FitAlarms, FitBackup } from '../native/plugins';
+import { FitAlarms, FitBackup, FitBiometric, type BiometricStatus } from '../native/plugins';
+import { PinDialog } from '../components/PinDialog';
+import { changePin, disableAppLock, enableAppLock } from '../services/security';
+import { LOCK_TIMEOUTS } from '../utils/pin';
 import { syncNative } from '../services/sync';
 import { exportBackup, parseBackup, pickBackupFile, restoreTables, summarizeTables, unpackBackup, type BackupFile } from '../services/backup';
 import { todayISO } from '../utils/dates';
@@ -27,7 +30,15 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
   const [restoreFile, setRestoreFile] = useState<BackupFile | null>(null);
   const [restoreTablesState, setRestoreTablesState] = useState<Record<string, Record<string, unknown>[]> | null>(null);
   const [passphrase, setPassphrase] = useState('');
+  const [pinDialog, setPinDialog] = useState<null | 'enable' | 'change-verify' | 'change-set' | 'disable' | 'bio-verify'>(null);
+  const [bioStatus, setBioStatus] = useState<BiometricStatus | null>(null);
   const targets = nutritionTargets(profile);
+
+  useEffect(() => {
+    FitBiometric.isAvailable()
+      .then((r) => setBioStatus(r.status))
+      .catch(() => setBioStatus('unavailable'));
+  }, []);
 
   useEffect(() => {
     FitAlarms.canScheduleExactAlarms()
@@ -357,6 +368,63 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         </div>
       </Card>
 
+      <Card title={t('security.title')}>
+        <div className="space-y-3 text-sm">
+          <Row label={t('security.appLock')} hint={t('security.appLockHint')}>
+            <Toggle checked={settings.appLockEnabled} label={t('security.appLock')} onChange={(v) => setPinDialog(v ? 'enable' : 'disable')} />
+          </Row>
+          {settings.appLockEnabled && (
+            <>
+              <Row
+                label={t('security.biometric')}
+                hint={
+                  bioStatus === 'available'
+                    ? t('security.biometricHint')
+                    : bioStatus === 'none_enrolled'
+                      ? t('security.biometricNone')
+                      : bioStatus === 'no_hardware'
+                        ? t('security.biometricNoHw')
+                        : t('today.stepsUnsupported')
+                }
+              >
+                <Toggle
+                  checked={settings.biometricEnabled && bioStatus === 'available'}
+                  label={t('security.biometric')}
+                  onChange={async (v) => {
+                    if (bioStatus !== 'available') return;
+                    if (!v) {
+                      await settingsRepo.set('biometricEnabled', false);
+                      notifyChange();
+                      return;
+                    }
+                    setPinDialog('bio-verify');
+                  }}
+                />
+              </Row>
+              <Field label={t('security.autoLock')}>
+                <select
+                  className="input"
+                  value={settings.lockTimeoutSec}
+                  onChange={async (e) => {
+                    await settingsRepo.set('lockTimeoutSec', Number(e.target.value));
+                    notifyChange();
+                  }}
+                >
+                  {LOCK_TIMEOUTS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {t(o.labelKey)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <button className="btn-ghost w-full" onClick={() => setPinDialog('change-verify')}>
+                {t('security.changePin')}
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
+
       <Card title={t('profile.backup')}>
         <p className="text-xs text-slate-500">{t('profile.backupNote')}</p>
         <div className="mt-3 flex items-center justify-between gap-3">
@@ -417,6 +485,51 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
       </Card>
 
       <p className="pb-4 text-center text-[11px] text-slate-400">{t('profile.footer')}</p>
+
+      <PinDialog
+        open={pinDialog === 'enable'}
+        mode="set"
+        onClose={() => setPinDialog(null)}
+        onDone={async (pin) => {
+          await enableAppLock(pin);
+          toast(t('security.pinSet'), 'success');
+        }}
+      />
+      <PinDialog
+        open={pinDialog === 'change-verify'}
+        mode="verify"
+        onClose={() => setPinDialog(null)}
+        onDone={() => {
+          setTimeout(() => setPinDialog('change-set'), 50);
+        }}
+      />
+      <PinDialog
+        open={pinDialog === 'change-set'}
+        mode="set"
+        onClose={() => setPinDialog(null)}
+        onDone={async (pin) => {
+          await changePin(pin);
+          toast(t('security.pinChanged'), 'success');
+        }}
+      />
+      <PinDialog
+        open={pinDialog === 'disable'}
+        mode="verify"
+        onClose={() => setPinDialog(null)}
+        onDone={async () => {
+          await disableAppLock();
+          toast(t('security.lockOff'));
+        }}
+      />
+      <PinDialog
+        open={pinDialog === 'bio-verify'}
+        mode="verify"
+        onClose={() => setPinDialog(null)}
+        onDone={async () => {
+          await settingsRepo.set('biometricEnabled', true);
+          notifyChange();
+        }}
+      />
 
       <Modal
         open={backupOpen}

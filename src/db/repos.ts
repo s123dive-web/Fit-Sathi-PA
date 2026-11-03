@@ -33,6 +33,13 @@ const DEFAULT_SETTINGS: Settings = {
   healthConnectEnabled: false,
   lastWeeklySummaryFor: null,
   installedAt: nowIso(),
+  appLockEnabled: false,
+  pinHash: null,
+  pinSalt: null,
+  biometricEnabled: false,
+  lockTimeoutSec: 60,
+  failedAttempts: 0,
+  lockoutUntil: null,
 };
 
 export const settingsRepo = {
