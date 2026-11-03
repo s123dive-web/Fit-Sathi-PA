@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import type { Profile, Settings } from './types';
 import { foodRepo, profileRepo, settingsRepo } from './db/repos';
@@ -12,13 +12,32 @@ import { Onboarding } from './screens/Onboarding';
 import { Today } from './screens/Today';
 import { Habits } from './screens/Habits';
 import { Food } from './screens/Food';
-import { Progress } from './screens/Progress';
+const Progress = lazy(() => import('./screens/Progress').then((m) => ({ default: m.Progress })));
 import { ProfileScreen } from './screens/ProfileScreen';
 import { ensureWeeklySummaries } from './services/weekly';
 import { applyNativeAction, consumePendingActions, syncNative } from './services/sync';
 import { FitAlarms } from './native/plugins';
 import { refreshSteps } from './services/health';
+import { todayISO } from './utils/dates';
+import { notifyChange, toast } from './store/appStore';
 import { t } from './i18n';
+
+/** Housekeeping on launch and on every return to the foreground. Never throws: a bad row must not block the UI. */
+async function onForeground(): Promise<void> {
+  try {
+    await consumePendingActions();
+  } catch (e) {
+    console.warn('pending actions failed', e);
+  }
+  try {
+    await ensureWeeklySummaries();
+  } catch (e) {
+    console.warn('weekly summaries failed', e);
+    toast(t('errors.weeklyFailed'), 'error');
+  }
+  void syncNative();
+  void refreshSteps();
+}
 
 function applyTheme(theme: Settings['theme']) {
   const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -46,12 +65,7 @@ export default function App() {
         applyTheme(s.theme);
         useLockStore.getState().initialize(s.onboarded && s.appLockEnabled);
         setReady(true);
-        if (s.onboarded) {
-          await consumePendingActions();
-          await ensureWeeklySummaries();
-          void syncNative();
-          void refreshSteps();
-        }
+        if (s.onboarded) await onForeground();
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : String(e));
@@ -71,6 +85,26 @@ export default function App() {
       applyTheme(s.theme);
     })();
   }, [revision, ready]);
+
+  // Midnight rollover: screens compute "today" when they render, so bump the revision when the date changes
+  // (checked every minute and whenever the page becomes visible again).
+  useEffect(() => {
+    let last = todayISO();
+    const check = () => {
+      const now = todayISO();
+      if (now !== last) {
+        last = now;
+        notifyChange();
+        void syncNative();
+      }
+    };
+    const id = setInterval(check, 60_000);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -92,12 +126,7 @@ export default function App() {
           const s = await settingsRepo.get();
           useLockStore.getState().onForeground(s.onboarded && s.appLockEnabled, s.lockTimeoutSec);
         }
-        if (isActive) {
-          await consumePendingActions();
-          await ensureWeeklySummaries();
-          void syncNative();
-          void refreshSteps();
-        }
+        await onForeground();
       });
       actionHandle = await FitAlarms.addListener('action', (a) => void applyNativeAction(a));
     })();
@@ -152,7 +181,11 @@ export default function App() {
         {tab === 'today' && <Today profile={profile} settings={settings} onOpenHabits={() => setTab('habits')} />}
         {tab === 'habits' && <Habits profile={profile} />}
         {tab === 'food' && <Food profile={profile} />}
-        {tab === 'progress' && <Progress profile={profile} settings={settings} />}
+        {tab === 'progress' && (
+          <Suspense fallback={<Spinner />}>
+            <Progress profile={profile} settings={settings} />
+          </Suspense>
+        )}
         {tab === 'profile' && <ProfileScreen profile={profile} settings={settings} />}
       </main>
       <TabBar tab={tab} onChange={setTab} />

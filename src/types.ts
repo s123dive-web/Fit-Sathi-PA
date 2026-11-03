@@ -231,6 +231,8 @@ export interface Settings {
   lockTimeoutSec: number;
   failedAttempts: number;
   lockoutUntil: string | null; // ISO timestamp
+  /** Wall-clock time of the last wrong PIN; used to detect a clock set backwards to skip a cooldown. */
+  lastFailedAt: string | null;
 }
 
 export interface PendingNativeAction {

@@ -6,7 +6,23 @@ import { XP } from '../utils/xp';
 import { notifyChange, showXp } from '../store/appStore';
 import type { ProgressPhoto } from '../types';
 
+/** Small LRU of decoded data URLs; full-size photos are ~1 MB each, so keep at most a screenful. */
+const MAX_CACHE = 24;
 const cache = new Map<string, string>();
+
+function remember(path: string, url: string): void {
+  cache.delete(path);
+  cache.set(path, url);
+  while (cache.size > MAX_CACHE) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
+
+export function clearPhotoCache(): void {
+  cache.clear();
+}
 
 /** Capture with the camera, encrypt, store privately; nothing leaves the device. */
 export async function captureProgressPhoto(weightKg: number | null, note: string, source: 'camera' | 'gallery' = 'camera'): Promise<ProgressPhoto | null> {
@@ -30,10 +46,13 @@ export async function captureProgressPhoto(weightKg: number | null, note: string
 
 export async function loadPhotoDataUrl(path: string): Promise<string> {
   const cached = cache.get(path);
-  if (cached) return cached;
+  if (cached) {
+    remember(path, cached); // bump recency
+    return cached;
+  }
   const { base64 } = await FitSecurePhotos.load({ key: path });
   const url = `data:image/jpeg;base64,${base64}`;
-  cache.set(path, url);
+  remember(path, url);
   return url;
 }
 

@@ -14,7 +14,15 @@ export interface Db {
   importAll(dump: Record<string, Record<string, unknown>[]>): Promise<void>;
   wipe(): Promise<void>;
   schemaVersion(): Promise<number>;
+  /**
+   * Run `fn` inside BEGIN/COMMIT (ROLLBACK on throw). Transactions are serialised through a mutex so two
+   * concurrent callers cannot interleave their statements. Nested calls join the outer transaction.
+   */
+  transaction<T>(fn: () => Promise<T>): Promise<T>;
 }
+
+/** Settings keys that a restore must never overwrite (app-lock state). Mirrors backup.ts LOCK_SETTINGS_KEYS. */
+const PROTECTED_SETTINGS_KEYS = new Set(['pinHash', 'pinSalt', 'appLockEnabled', 'biometricEnabled', 'failedAttempts', 'lockoutUntil', 'lastFailedAt']);
 
 export const TABLES = [
   'settings',
@@ -42,6 +50,8 @@ let dbPromise: Promise<Db> | null = null;
 class SqliteDb implements Db {
   private dirty = false;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private txChain: Promise<unknown> = Promise.resolve();
+  private txDepth = 0;
 
   constructor(
     private conn: SQLiteDBConnection,
@@ -95,6 +105,28 @@ class SqliteDb implements Db {
     }
   }
 
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.txDepth > 0) return fn(); // nested: join the outer transaction
+    const run = async (): Promise<T> => {
+      this.txDepth += 1;
+      await this.conn.execute('BEGIN', false);
+      try {
+        const out = await fn();
+        await this.conn.execute('COMMIT', false);
+        this.scheduleSave();
+        return out;
+      } catch (e) {
+        await this.conn.execute('ROLLBACK', false).catch(() => undefined);
+        throw e;
+      } finally {
+        this.txDepth -= 1;
+      }
+    };
+    const next = this.txChain.then(run, run);
+    this.txChain = next.catch(() => undefined);
+    return next;
+  }
+
   async schemaVersion(): Promise<number> {
     const rows = await this.query<{ v: number | null }>(`SELECT MAX(version) as v FROM schema_migrations`);
     return rows[0]?.v ?? 0;
@@ -107,11 +139,17 @@ class SqliteDb implements Db {
   }
 
   async importAll(dump: Record<string, Record<string, unknown>[]>): Promise<void> {
-    await this.execute('BEGIN');
-    try {
+    await this.transaction(async () => {
       for (const t of TABLES) {
-        await this.conn.run(`DELETE FROM ${t}`, [], false);
+        if (t === 'settings') {
+          // Keep the device's lock state; replace everything else.
+          const keep = [...PROTECTED_SETTINGS_KEYS];
+          await this.conn.run(`DELETE FROM settings WHERE key NOT IN (${keep.map(() => '?').join(',')})`, keep as never[], false);
+        } else {
+          await this.conn.run(`DELETE FROM ${t}`, [], false);
+        }
         for (const row of dump[t] ?? []) {
+          if (t === 'settings' && PROTECTED_SETTINGS_KEYS.has(String(row.key))) continue;
           const cols = Object.keys(row).filter((c) => /^[a-z_]+$/.test(c));
           if (!cols.length) continue;
           await this.conn.run(
@@ -121,12 +159,7 @@ class SqliteDb implements Db {
           );
         }
       }
-      await this.execute('COMMIT');
-    } catch (e) {
-      await this.execute('ROLLBACK');
-      throw e;
-    }
-    this.scheduleSave();
+    });
   }
 
   async wipe(): Promise<void> {

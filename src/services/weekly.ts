@@ -1,12 +1,19 @@
 import type { Habit, HabitLog, ISODate, WeeklySummary } from '../types';
 import { habitRepo, mealRepo, pointsRepo, settingsRepo, summaryRepo, waterRepo, weightRepo } from '../db/repos';
-import { addDays, nowIso, todayISO, weekStart } from '../utils/dates';
+import { addDays, diffDays, nowIso, todayISO, weekStart } from '../utils/dates';
 import { completionStats } from '../utils/habitStrength';
 import { dailyWeights } from '../utils/projection';
 import { notifyChange } from '../store/appStore';
 
-/** Compute a summary for one week [start, start+6]. */
-export async function computeWeeklySummary(start: ISODate, habits: Habit[], allLogs: HabitLog[]): Promise<WeeklySummary> {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A weigh-in older than this before the week starts is not a meaningful baseline for the week's delta. */
+const BASELINE_MAX_GAP_DAYS = 10;
+
+/**
+ * Compute a summary for one week [start, start+6]. `today` bounds the habit denominator so an in-progress week
+ * (the live "this week so far" card) never counts future or unlogged days as missed.
+ */
+export async function computeWeeklySummary(start: ISODate, habits: Habit[], allLogs: HabitLog[], today: ISODate = todayISO()): Promise<WeeklySummary> {
   const end = addDays(start, 6);
   let scheduled = 0;
   let done = 0;
@@ -15,7 +22,7 @@ export async function computeWeeklySummary(start: ISODate, habits: Habit[], allL
     if (h.createdAt > end) continue;
     const logs = allLogs.filter((l) => l.habitId === h.id);
     const from = h.createdAt > start ? h.createdAt : start;
-    const st = completionStats(h.schedule, logs, from, end);
+    const st = completionStats(h.schedule, logs, from, end, today);
     scheduled += Math.max(0, st.scheduled - st.skipped);
     done += st.done;
     if (h.kind === 'workout') workouts += logs.filter((l) => l.status === 'done' && l.date >= start && l.date <= end).length;
@@ -27,7 +34,7 @@ export async function computeWeeklySummary(start: ISODate, habits: Habit[], allL
   const avgWaterMl = waterVals.length ? Math.round(waterVals.reduce((a, b) => a + b, 0) / 7) : 0;
 
   const weights = dailyWeights(await weightRepo.all());
-  const prevWeek = weights.filter((w) => w.date < start).slice(-1)[0];
+  const prevWeek = weights.filter((w) => w.date < start && diffDays(w.date, start) <= BASELINE_MAX_GAP_DAYS).slice(-1)[0];
   const inWeek = weights.filter((w) => w.date >= start && w.date <= end);
   let weightDeltaKg: number | null = null;
   if (inWeek.length) {
@@ -67,7 +74,7 @@ export async function ensureWeeklySummaries(): Promise<void> {
   const habits = await habitRepo.all(true);
   const logs = await habitRepo.allLogs();
   const weights = await weightRepo.all();
-  const firstDates = [...habits.map((h) => h.createdAt), ...weights.map((w) => w.date), ...logs.map((l) => l.date)].sort();
+  const firstDates = [...habits.map((h) => h.createdAt), ...weights.map((w) => w.date), ...logs.map((l) => l.date)].filter((d) => ISO_DATE.test(d)).sort();
   if (!firstDates.length) return;
   const existing = new Set((await summaryRepo.all()).map((s) => s.weekStart));
   let ws = weekStart(firstDates[0]);
@@ -76,7 +83,7 @@ export async function ensureWeeklySummaries(): Promise<void> {
   while (ws < thisWeek && guard < 520) {
     guard += 1;
     if (!existing.has(ws)) {
-      await summaryRepo.upsert(await computeWeeklySummary(ws, habits, logs));
+      await summaryRepo.upsert(await computeWeeklySummary(ws, habits, logs, today));
       changed = true;
     }
     ws = addDays(ws, 7);
@@ -93,5 +100,6 @@ export async function ensureWeeklySummaries(): Promise<void> {
 export async function currentWeekSummary(): Promise<WeeklySummary> {
   const habits = await habitRepo.all(true);
   const logs = await habitRepo.allLogs();
-  return computeWeeklySummary(weekStart(todayISO()), habits, logs);
+  const today = todayISO();
+  return computeWeeklySummary(weekStart(today), habits, logs, today);
 }

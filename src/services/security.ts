@@ -9,46 +9,74 @@ import type { Settings } from '../types';
 export async function enableAppLock(pin: string): Promise<void> {
   const salt = generateSalt();
   const hash = await hashPin(pin, salt);
-  await settingsRepo.update({ appLockEnabled: true, pinHash: hash, pinSalt: salt, failedAttempts: 0, lockoutUntil: null });
+  await settingsRepo.update({ appLockEnabled: true, pinHash: hash, pinSalt: salt, failedAttempts: 0, lockoutUntil: null, lastFailedAt: null });
   notifyChange();
 }
 
 export async function changePin(pin: string): Promise<void> {
   const salt = generateSalt();
   const hash = await hashPin(pin, salt);
-  await settingsRepo.update({ pinHash: hash, pinSalt: salt, failedAttempts: 0, lockoutUntil: null });
+  await settingsRepo.update({ pinHash: hash, pinSalt: salt, failedAttempts: 0, lockoutUntil: null, lastFailedAt: null });
   notifyChange();
 }
 
 export async function disableAppLock(): Promise<void> {
-  await settingsRepo.update({ appLockEnabled: false, pinHash: null, pinSalt: null, biometricEnabled: false, failedAttempts: 0, lockoutUntil: null });
+  await settingsRepo.update({ appLockEnabled: false, pinHash: null, pinSalt: null, biometricEnabled: false, failedAttempts: 0, lockoutUntil: null, lastFailedAt: null });
   useLockStore.getState().unlock();
   notifyChange();
 }
 
-export type PinAttempt = { ok: true } | { ok: false; lockedForSec: number; attemptsLeft: number };
+export type PinAttempt = { ok: true } | { ok: false; lockedForSec: number; attemptsLeft: number; reason?: 'wrong' | 'locked' | 'no_pin' };
 
-/** Verify a PIN against stored settings, applying the cooldown schedule. */
+/**
+ * Process-local monotonic lockout deadline (performance.now based). Persisted `lockoutUntil` is wall-clock and can
+ * be skipped by changing the phone's clock; this guard makes the cooldown hold for the life of the process regardless.
+ */
+let monoLockoutUntil = 0;
+const mono = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+/** @internal test hook */
+export function _resetMonotonicLockout(): void {
+  monoLockoutUntil = 0;
+}
+
+/** Verify a PIN against stored settings, applying the cooldown schedule. Fails closed when the lock state is corrupt. */
 export async function attemptPin(pin: string): Promise<PinAttempt> {
   const s = await settingsRepo.get();
   const now = Date.now();
-  if (s.lockoutUntil && new Date(s.lockoutUntil).getTime() > now) {
-    return { ok: false, lockedForSec: Math.ceil((new Date(s.lockoutUntil).getTime() - now) / 1000), attemptsLeft: 0 };
+  const monoLeft = Math.ceil((monoLockoutUntil - mono()) / 1000);
+  const wallLeft = s.lockoutUntil ? Math.ceil((new Date(s.lockoutUntil).getTime() - now) / 1000) : 0;
+  // If the wall clock went backwards past the last failed attempt, re-arm the cooldown from "now".
+  const clockWentBack = s.lastFailedAt !== null && new Date(s.lastFailedAt).getTime() > now + 5_000;
+  const left = Math.max(monoLeft, wallLeft, clockWentBack ? lockoutSeconds(s.failedAttempts) : 0);
+  if (left > 0) {
+    if (clockWentBack) await settingsRepo.update({ lockoutUntil: new Date(now + left * 1000).toISOString(), lastFailedAt: new Date(now).toISOString() });
+    return { ok: false, lockedForSec: left, attemptsLeft: 0, reason: 'locked' };
   }
-  if (!s.pinHash || !s.pinSalt) return { ok: true }; // nothing to check against
+  if (!s.pinHash || !s.pinSalt) {
+    // Lock is enabled but the hash is missing: never fail open. "Forgot PIN" (erase) is the recovery path.
+    return { ok: false, lockedForSec: 0, attemptsLeft: 0, reason: 'no_pin' };
+  }
   if (await verifyPin(pin, s.pinSalt, s.pinHash)) {
-    if (s.failedAttempts || s.lockoutUntil) await settingsRepo.update({ failedAttempts: 0, lockoutUntil: null });
+    monoLockoutUntil = 0;
+    if (s.failedAttempts || s.lockoutUntil) await settingsRepo.update({ failedAttempts: 0, lockoutUntil: null, lastFailedAt: null });
     return { ok: true };
   }
   const failed = s.failedAttempts + 1;
   const cool = lockoutSeconds(failed);
-  await settingsRepo.update({ failedAttempts: failed, lockoutUntil: cool ? new Date(now + cool * 1000).toISOString() : null });
-  return { ok: false, lockedForSec: cool, attemptsLeft: Math.max(0, 5 - failed) };
+  if (cool) monoLockoutUntil = mono() + cool * 1000;
+  await settingsRepo.update({
+    failedAttempts: failed,
+    lockoutUntil: cool ? new Date(now + cool * 1000).toISOString() : null,
+    lastFailedAt: new Date(now).toISOString(),
+  });
+  return { ok: false, lockedForSec: cool, attemptsLeft: Math.max(0, 5 - failed), reason: 'wrong' };
 }
 
 export function remainingLockout(s: Settings, now = Date.now()): number {
-  if (!s.lockoutUntil) return 0;
-  return Math.max(0, Math.ceil((new Date(s.lockoutUntil).getTime() - now) / 1000));
+  const monoLeft = Math.ceil((monoLockoutUntil - mono()) / 1000);
+  const wallLeft = s.lockoutUntil ? Math.ceil((new Date(s.lockoutUntil).getTime() - now) / 1000) : 0;
+  return Math.max(0, monoLeft, wallLeft);
 }
 
 export async function biometricUnlock(): Promise<boolean> {

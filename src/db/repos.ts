@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   lockTimeoutSec: 60,
   failedAttempts: 0,
   lockoutUntil: null,
+  lastFailedAt: null,
 };
 
 export const settingsRepo = {
@@ -234,10 +235,14 @@ export const habitRepo = {
       ],
     );
   },
+  /** Hard delete: removes the habit, its history and every XP entry it earned (habit + milestone bonuses). */
   async remove(id: string): Promise<void> {
     const db = await getDb();
-    await db.run(`DELETE FROM habit_logs WHERE habit_id = ?`, [id]);
-    await db.run(`DELETE FROM habits WHERE id = ?`, [id]);
+    await db.transaction(async () => {
+      await db.run(`DELETE FROM habit_logs WHERE habit_id = ?`, [id]);
+      await db.run(`DELETE FROM habits WHERE id = ?`, [id]);
+      await db.run(`DELETE FROM points_ledger WHERE reason = ? OR reason LIKE ?`, [`habit:${id}`, `milestone:${id}:%`]);
+    });
   },
   async logsFor(habitId: string, from?: ISODate, to?: ISODate): Promise<HabitLog[]> {
     const db = await getDb();
@@ -679,5 +684,14 @@ export const pointsRepo = {
   async revoke(date: ISODate, reason: string): Promise<void> {
     const db = await getDb();
     await db.run(`DELETE FROM points_ledger WHERE date = ? AND reason = ?`, [date, reason]);
+  },
+  /** Remove the most recent XP entry on a date whose reason starts with `prefix` (e.g. one water tap). */
+  async revokeLatestLike(date: ISODate, prefix: string): Promise<void> {
+    const db = await getDb();
+    const rows = await db.query<{ id: string }>(`SELECT id FROM points_ledger WHERE date = ? AND reason LIKE ? ORDER BY created_at DESC LIMIT 1`, [
+      date,
+      `${prefix}%`,
+    ]);
+    if (rows.length) await db.run(`DELETE FROM points_ledger WHERE id = ?`, [rows[0].id]);
   },
 };

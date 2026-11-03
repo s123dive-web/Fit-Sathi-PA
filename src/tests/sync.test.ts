@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildAlarms } from '../services/sync';
+import { buildAlarms, MAX_MOTIVATION_TIMES_PER_DAY } from '../services/sync';
 import { habitsFromProfile, validateProfile } from '../utils/profile';
 import type { Profile } from '../types';
 
@@ -44,6 +44,25 @@ describe('alarm set from profile + habits', () => {
       expect(mins).toBeGreaterThan(6 * 60);
       expect(mins).toBeLessThan(22 * 60 + 30);
     }
+  });
+
+  it('marks only supplements and the workout as exact alarms; every other reminder is inexact', () => {
+    const alarms = buildAlarms(sample, habitsFromProfile(sample));
+    for (const a of alarms) {
+      if (a.kind === 'supplement' || a.kind === 'workout') expect(a.exact).toBe(true);
+      else expect(a.exact).toBe(false);
+    }
+    expect(alarms.filter((a) => a.exact).length).toBeLessThanOrEqual(4);
+  });
+
+  it('renders alarm copy through i18n (no hardcoded English fallback keys leak)', () => {
+    const alarms = buildAlarms(sample, habitsFromProfile(sample));
+    for (const a of alarms) {
+      expect(a.title).not.toMatch(/^alarms\./);
+      expect(a.body).not.toMatch(/^alarms\./);
+      expect(a.title.length).toBeGreaterThan(0);
+    }
+    expect(MAX_MOTIVATION_TIMES_PER_DAY).toBe(2);
   });
 
   it('honours every channel toggle', () => {

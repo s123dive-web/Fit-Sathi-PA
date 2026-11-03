@@ -5,14 +5,20 @@ import { fastingWarningTime } from '../utils/fasting';
 import { habitActiveOn } from '../utils/schedule';
 import { completionStats, computeStreaks } from '../utils/habitStrength';
 import { projectToTarget } from '../utils/projection';
-import { pickQuotes, renderQuote, type QuoteContext } from '../utils/quotes';
+import { pickQuotes, QUOTES, renderQuote, type QuoteContext } from '../utils/quotes';
 import { FitAlarms, FitWidget, type AlarmSpec, type PinnedItem, type WidgetItem } from '../native/plugins';
 import { notifyChange, toast } from '../store/appStore';
 import { t } from '../i18n';
 
 const MOTIVATION_HORIZON_DAYS = 14;
+/** The 64-template pool guarantees no repeat inside 14 days for at most 2 slots/day (64 ≥ 2 × 2 × 14). */
+export const MAX_MOTIVATION_TIMES_PER_DAY = 2;
 
-/** Build the recurring alarm set from profile + habits. Pure, unit-tested. */
+/**
+ * Build the recurring alarm set from profile + habits. Pure, unit-tested.
+ * Only supplements and the workout are exact (user-visible alarm clocks); everything else is an inexact reminder
+ * so the app respects Android's exact-alarm policy and the battery.
+ */
 export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
   const alarms: AlarmSpec[] = [];
   const n = profile.notifications;
@@ -26,13 +32,14 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         kind: 'supplement',
         refId: s.id,
         title: s.name,
-        body: s.dose ? `Time for ${s.name} — ${s.dose}` : `Time for ${s.name}`,
+        body: s.dose ? t('alarms.supplementBodyDose', { name: s.name, dose: s.dose }) : t('alarms.supplementBody', { name: s.name }),
         hour: h,
         minute: m,
         days: [],
         actions: ['done', 'snooze'],
         alarmClock: true,
         fullScreen: true,
+        exact: true,
       });
     }
   }
@@ -41,18 +48,20 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
     const { h, m } = parseHHMM(profile.workout.start);
     const days = dayNamesToWeekdays(profile.workout.days);
     const workoutHabit = habits.find((x) => x.kind === 'workout' && !x.archived);
+    const bodyParams = { start: profile.workout.start, end: profile.workout.end, location: profile.workout.location ?? '' };
     alarms.push({
       id: 'workout',
       kind: 'workout',
       refId: workoutHabit?.id ?? 'workout',
-      title: 'Workout time 🏋️',
-      body: `${profile.workout.start}–${profile.workout.end}${profile.workout.location ? ` · ${profile.workout.location}` : ''}`,
+      title: t('alarms.workoutTitle'),
+      body: profile.workout.location ? t('alarms.workoutBodyAt', bodyParams) : t('alarms.workoutBody', bodyParams),
       hour: h,
       minute: m,
       days: days.length === 7 ? [] : days,
       actions: workoutHabit ? ['done', 'skip', 'snooze'] : ['snooze'],
       alarmClock: true,
       fullScreen: true,
+      exact: true,
     });
   }
 
@@ -66,11 +75,12 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         kind: 'habit',
         refId: hb.id,
         title: `${hb.emoji} ${hb.name}`,
-        body: 'Tap Done, or Skip for a planned rest.',
+        body: t('alarms.habitBody'),
         hour: h,
         minute: m,
         days,
         actions: ['done', 'skip', 'snooze'],
+        exact: false,
       });
     }
     if (n.eveningCheckIn) {
@@ -79,18 +89,19 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         id: 'habits:evening',
         kind: 'habit',
         refId: '*',
-        title: 'Evening check-in',
-        body: "Tick off today's habits before the day ends.",
+        title: t('alarms.eveningTitle'),
+        body: t('alarms.eveningBody'),
         hour: h,
         minute: m,
         days: [],
         actions: [],
+        exact: false,
       });
     }
   }
 
   if (n.waterReminders !== false) {
-    const interval = n.waterReminderIntervalMin ?? 90;
+    const interval = Math.max(30, n.waterReminderIntervalMin ?? 90);
     const wake = hhmmToMinutes(profile.sleep.wake);
     const bed = hhmmToMinutes(profile.sleep.bedtime);
     const awakeLen = (bed - wake + 1440) % 1440 || 1440;
@@ -100,12 +111,13 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         id: `water:${mins}`,
         kind: 'water',
         refId: 'water',
-        title: 'Water break 💧',
-        body: 'Have a glass of water (+250 ml).',
+        title: t('alarms.waterTitle'),
+        body: t('alarms.waterBody'),
         hour: Math.floor(mins / 60),
         minute: mins % 60,
         days: [],
         actions: ['add'],
+        exact: false,
       });
     }
   }
@@ -118,12 +130,13 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         id: 'fast:warn',
         kind: 'fasting',
         refId: 'fasting',
-        title: `Eating window closes in ${warnMin} min`,
-        body: `Finish dinner before ${profile.fasting.eatEnd}.`,
+        title: t('alarms.fastWarnTitle', { min: warnMin }),
+        body: t('alarms.fastWarnBody', { time: profile.fasting.eatEnd }),
         hour: w.h,
         minute: w.m,
         days: [],
         actions: [],
+        exact: false,
       });
     }
     const close = parseHHMM(profile.fasting.eatEnd);
@@ -132,23 +145,25 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
       id: 'fast:close',
       kind: 'fasting',
       refId: 'fasting',
-      title: 'Eating window closed',
-      body: `Fasting until ${profile.fasting.eatStart}. You've got this.`,
+      title: t('alarms.fastCloseTitle'),
+      body: t('alarms.fastCloseBody', { time: profile.fasting.eatStart }),
       hour: close.h,
       minute: close.m,
       days: [],
       actions: [],
+      exact: false,
     });
     alarms.push({
       id: 'fast:open',
       kind: 'fasting',
       refId: 'fasting',
-      title: 'Fast complete 🎉',
-      body: 'Your eating window is open.',
+      title: t('alarms.fastOpenTitle'),
+      body: t('alarms.fastOpenBody'),
       hour: open.h,
       minute: open.m,
       days: [],
       actions: [],
+      exact: false,
     });
   }
   return alarms;
@@ -156,7 +171,7 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
 
 /** Context for quote placeholders, computed from current data. */
 export async function quoteContext(profile: Profile, habits: Habit[], today: ISODate): Promise<QuoteContext> {
-  const logs = await habitRepo.allLogs();
+  const logs = await habitRepo.logsBetween(addDays(today, -400), today);
   let streak = 0;
   let bestStreak = 0;
   let scheduled = 0;
@@ -185,6 +200,8 @@ export async function quoteContext(profile: Profile, habits: Habit[], today: ISO
     weekCompletion: scheduled === 0 ? 0 : Math.round((done / scheduled) * 100),
     targetKg: profile.user.targetWeightKg,
     eatStart: profile.fasting.eatStart,
+    eatEnd: profile.fasting.eatEnd,
+    wake: profile.sleep.wake,
   };
 }
 
@@ -195,23 +212,26 @@ export async function quoteContext(profile: Profile, habits: Habit[], today: ISO
  */
 export async function buildMotivationAlarms(profile: Profile, habits: Habit[], today: ISODate): Promise<AlarmSpec[]> {
   const m = profile.notifications.motivational;
-  if (!m.enabled || m.times.length === 0) {
+  const times = [...new Set(m.times)].sort().slice(0, MAX_MOTIVATION_TIMES_PER_DAY);
+  if (!m.enabled || times.length === 0) {
     await notificationLogRepo.deleteFrom(`${today}T00:00`, 'motivation');
     return [];
   }
   const ctx = await quoteContext(profile, habits, today);
   const windowStart = `${addDays(today, -MOTIVATION_HORIZON_DAYS)}T00:00`;
-  const history = await notificationLogRepo.since(windowStart);
-  const planned = new Map(history.filter((h) => h.kind === 'motivation').map((h) => [h.scheduledFor, h.refId]));
-  const recentlyUsed = history.filter((h) => h.kind === 'motivation').map((h) => h.refId);
+  const history = (await notificationLogRepo.since(windowStart)).filter((h) => h.kind === 'motivation');
+  const planned = new Map(history.map((h) => [h.scheduledFor, h.refId]));
+  // Only slots that have already fired count as "recently used"; future planned slots are reused as-is.
+  const recentlyUsed = history.filter((h) => h.scheduledFor < `${today}T00:00`).map((h) => h.refId);
 
   const slots: { date: ISODate; time: string; key: string }[] = [];
   for (let i = 0; i < MOTIVATION_HORIZON_DAYS; i += 1) {
     const d = addDays(today, i);
-    for (const time of m.times) slots.push({ date: d, time, key: `${d}T${time}` });
+    for (const time of times) slots.push({ date: d, time, key: `${d}T${time}` });
   }
   const missing = slots.filter((s) => !planned.has(s.key));
-  const fresh = pickQuotes(missing.length, recentlyUsed, `${today}:${profile.user.name}`);
+  const avoid = [...recentlyUsed, ...slots.filter((s) => planned.has(s.key)).map((s) => planned.get(s.key) as string)];
+  const fresh = pickQuotes(missing.length, avoid, `${today}:${profile.user.name}`);
   const alarms: AlarmSpec[] = [];
   let fi = 0;
   for (const s of slots) {
@@ -221,20 +241,21 @@ export async function buildMotivationAlarms(profile: Profile, habits: Habit[], t
       if (!quoteId) continue;
       await notificationLogRepo.add({ kind: 'motivation', refId: quoteId, scheduledFor: s.key, body: '' });
     }
-    const q = (await import('../utils/quotes')).QUOTES.find((x) => x.id === quoteId);
+    const q = QUOTES.find((x) => x.id === quoteId);
     if (!q) continue;
-    const { h, min } = { h: parseHHMM(s.time).h, min: parseHHMM(s.time).m };
+    const { h, m: min } = parseHHMM(s.time);
     alarms.push({
       id: `motiv:${s.key}`,
       kind: 'motivation',
       refId: quoteId,
-      title: 'FitSaathi',
+      title: t('alarms.motivationTitle'),
       body: renderQuote(q.text, ctx),
       hour: h,
       minute: min,
       days: [],
       date: s.date,
       actions: [],
+      exact: false,
     });
   }
   return alarms;
@@ -242,6 +263,20 @@ export async function buildMotivationAlarms(profile: Profile, habits: Habit[], t
 
 let syncing = false;
 let queued = false;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const SYNC_DEBOUNCE_MS = 400;
+
+/**
+ * Debounced native sync for user actions: several quick taps collapse into one rebuild of the alarm set,
+ * one pinned-notification update and one widget update.
+ */
+export function scheduleSync(delayMs = SYNC_DEBOUNCE_MS): void {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    void syncNative();
+  }, delayMs);
+}
 
 /** Push alarms, pinned notification and widget state to the native layer. Safe to call often. */
 export async function syncNative(): Promise<void> {
@@ -280,7 +315,7 @@ export async function syncNative(): Promise<void> {
       FitAlarms.syncAlarms({ alarms }),
       FitAlarms.updatePinned({
         enabled: profile.notifications.pinnedChecklist !== false,
-        title: `FitSaathi · ${pinned.filter((p) => p.done).length}/${pinned.length} done`,
+        title: t('alarms.pinnedTitle', { done: pinned.filter((p) => p.done).length, total: pinned.length }),
         date: today,
         items: pinned,
       }),
@@ -297,18 +332,66 @@ export async function syncNative(): Promise<void> {
   }
 }
 
-/** Apply actions taken from notifications / widget while the web layer was not running. */
-export async function consumePendingActions(): Promise<number> {
-  const { actions } = await FitAlarms.getPendingActions();
-  if (!actions.length) return 0;
-  await FitAlarms.clearPendingActions();
-  for (const a of actions) await applyNativeAction(a, false);
-  notifyChange();
-  void syncNative();
-  return actions.length;
+/* ---------------- native actions (notification buttons, widget taps) ---------------- */
+
+/**
+ * Timestamps of actions already applied in this process. The native layer delivers an action either live (event)
+ * or stored (drained on resume), never both, but we also dedupe here so a retry or an older native build cannot
+ * apply the same tap twice.
+ */
+const appliedTs: number[] = [];
+const APPLIED_LIMIT = 500;
+
+function markApplied(ts: number): boolean {
+  if (!Number.isFinite(ts)) return true;
+  if (appliedTs.includes(ts)) return false;
+  appliedTs.push(ts);
+  if (appliedTs.length > APPLIED_LIMIT) appliedTs.splice(0, appliedTs.length - APPLIED_LIMIT);
+  return true;
 }
 
-export async function applyNativeAction(a: PendingNativeAction, notify = true): Promise<void> {
+/** @internal test hook */
+export function _resetAppliedActions(): void {
+  appliedTs.length = 0;
+}
+
+async function drainNativeActions(): Promise<PendingNativeAction[]> {
+  // Prefer the atomic drain; fall back to get + clear for an older native build.
+  if (typeof FitAlarms.drainPendingActions === 'function') {
+    try {
+      return (await FitAlarms.drainPendingActions()).actions ?? [];
+    } catch {
+      /* fall through */
+    }
+  }
+  const { actions } = await FitAlarms.getPendingActions();
+  if (actions.length) await FitAlarms.clearPendingActions();
+  return actions;
+}
+
+/** Apply actions taken from notifications / widget while the web layer was not running. */
+export async function consumePendingActions(): Promise<number> {
+  const actions = await drainNativeActions();
+  if (!actions.length) return 0;
+  let applied = 0;
+  for (const a of actions) {
+    try {
+      if (await applyNativeAction(a, false)) applied += 1;
+    } catch (e) {
+      console.warn('pending action failed', a, e);
+      toast(t('errors.actionFailed'), 'error');
+    }
+  }
+  if (applied) {
+    notifyChange();
+    scheduleSync(0);
+  }
+  return applied;
+}
+
+/** Returns false when the action was a duplicate and skipped. */
+export async function applyNativeAction(a: PendingNativeAction, notify = true): Promise<boolean> {
+  if (!markApplied(a.ts)) return false;
   const { setHabitStatus, toggleSupplement, addWater } = await import('./actions');
   const date: ISODate = a.date || todayISO();
   if (a.kind === 'habit' && (a.action === 'done' || a.action === 'skip')) {
@@ -323,9 +406,12 @@ export async function applyNativeAction(a: PendingNativeAction, notify = true): 
   } else if (a.kind === 'water' && a.action === 'add') {
     const profile = await profileRepo.get();
     await addWater(date, 250, profile?.water.targetMl ?? 2500);
+  } else {
+    return false;
   }
   if (notify) {
     toast(t('errors.updatedFromNotification'), 'success');
     notifyChange();
   }
+  return true;
 }
