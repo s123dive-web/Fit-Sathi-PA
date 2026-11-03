@@ -1,5 +1,6 @@
 package com.fitsaathi.app.plugins
 
+import android.os.Build
 import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -15,6 +16,8 @@ import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -24,12 +27,21 @@ import java.time.ZoneId
 class FitHealthConnectPlugin : Plugin() {
 
     private val readSteps = HealthPermission.getReadPermission(StepsRecord::class)
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private fun status(): String = when (HealthConnectClient.getSdkStatus(context)) {
-        HealthConnectClient.SDK_AVAILABLE -> "available"
-        HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "update_required"
-        else -> "not_installed"
+    /** Mirrors HealthConnectStatus in src/native/plugins.ts. Health Connect needs Android 9 (API 28). */
+    private fun status(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return "unsupported"
+        return when (HealthConnectClient.getSdkStatus(context)) {
+            HealthConnectClient.SDK_AVAILABLE -> "available"
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "update_required"
+            else -> "not_installed"
+        }
+    }
+
+    override fun handleOnDestroy() {
+        super.handleOnDestroy()
+        scope.cancel()
     }
 
     @PluginMethod
@@ -41,7 +53,8 @@ class FitHealthConnectPlugin : Plugin() {
     @PluginMethod
     fun hasPermission(call: PluginCall) {
         if (status() != "available") {
-            call.resolve(JSObject().put("granted", false)); return
+            call.resolve(JSObject().put("granted", false))
+            return
         }
         scope.launch {
             try {
@@ -57,25 +70,34 @@ class FitHealthConnectPlugin : Plugin() {
     @PluginMethod
     fun requestPermission(call: PluginCall) {
         if (status() != "available") {
-            call.resolve(JSObject().put("granted", false)); return
+            call.resolve(JSObject().put("granted", false))
+            return
         }
-        val contract = PermissionController.createRequestPermissionResultContract()
-        val intent = contract.createIntent(context, setOf(readSteps))
-        startActivityForResult(call, intent, "permissionResult")
+        try {
+            val contract = PermissionController.createRequestPermissionResultContract()
+            val intent = contract.createIntent(context, setOf(readSteps))
+            startActivityForResult(call, intent, "permissionResult")
+        } catch (e: Exception) {
+            call.resolve(JSObject().put("granted", false))
+        }
     }
 
     @ActivityCallback
     private fun permissionResult(call: PluginCall?, result: ActivityResult) {
         if (call == null) return
-        val contract = PermissionController.createRequestPermissionResultContract()
-        val granted = try { contract.parseResult(result.resultCode, result.data).contains(readSteps) } catch (e: Exception) { false }
+        val granted = try {
+            PermissionController.createRequestPermissionResultContract().parseResult(result.resultCode, result.data).contains(readSteps)
+        } catch (e: Exception) {
+            false
+        }
         call.resolve(JSObject().put("granted", granted))
     }
 
     @PluginMethod
     fun readSteps(call: PluginCall) {
         if (status() != "available") {
-            call.reject("Health Connect unavailable"); return
+            call.reject("Health Connect unavailable")
+            return
         }
         val dateStr = call.getString("date") ?: LocalDate.now().toString()
         scope.launch {

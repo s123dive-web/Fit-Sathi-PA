@@ -29,8 +29,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
-            <!-- Health Connect: show our privacy rationale when the user asks (Android 13 and below) -->
+        <!-- Health Connect privacy rationale (Play requirement). Android 13 and below open it through this action. -->
+        <activity
+            android:name=".health.PermissionsRationaleActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/health_connect_rationale_title"
+            android:theme="@style/AppTheme.NoActionBar">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
@@ -40,7 +47,7 @@
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
-            android:targetActivity=".MainActivity"
+            android:targetActivity=".health.PermissionsRationaleActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
@@ -68,7 +75,7 @@
             android:turnScreenOn="true"
             android:theme="@style/AppTheme.NoActionBar" />
 
-        <!-- Exact alarms -->
+        <!-- Alarms -->
         <receiver android:name=".alarms.AlarmReceiver" android:exported="false" />
         <receiver android:name=".alarms.ActionReceiver" android:exported="false" />
         <receiver android:name=".alarms.BootReceiver" android:exported="true">
@@ -78,6 +85,8 @@
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <!-- Android 12+: granting / revoking SCHEDULE_EXACT_ALARM cancels our alarms; re-arm them. -->
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
 
@@ -99,9 +108,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Camera (progress photos) -->
+    <!-- Camera (progress photos). The gallery path uses the system picker, which needs no media permission;
+         READ_EXTERNAL_STORAGE only backs @capacitor/camera's saveToGallery alias on API 29-32. -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Health Connect, read-only -->

@@ -28,7 +28,9 @@ class FitSecurePhotosPlugin : Plugin() {
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        // getKey() rather than getEntry(): some OEM keystores return a non-SecretKeyEntry wrapper for AES keys.
+        val existing = try { ks.getKey(alias, null) as? SecretKey } catch (e: Exception) { null }
+        if (existing != null) return existing
         val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         gen.init(
             KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)

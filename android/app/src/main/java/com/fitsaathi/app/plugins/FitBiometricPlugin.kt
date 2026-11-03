@@ -18,6 +18,10 @@ class FitBiometricPlugin : Plugin() {
 
     private val authenticators = BIOMETRIC_STRONG or BIOMETRIC_WEAK
 
+    /** The single in-flight authenticate() call; a new call supersedes it, activity destruction rejects it. */
+    private val lock = Any()
+    private var pending: PluginCall? = null
+
     private fun status(): String = when (BiometricManager.from(context).canAuthenticate(authenticators)) {
         BiometricManager.BIOMETRIC_SUCCESS -> "available"
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "none_enrolled"
@@ -31,40 +35,80 @@ class FitBiometricPlugin : Plugin() {
         call.resolve(JSObject().put("available", s == "available").put("status", s))
     }
 
+    /** Resolves `call` only if it is still the in-flight call (a superseded call was already rejected). */
+    private fun finish(call: PluginCall, data: JSObject) {
+        val mine = synchronized(lock) {
+            if (pending === call) {
+                pending = null
+                true
+            } else {
+                false
+            }
+        }
+        if (mine) call.resolve(data)
+    }
+
+    override fun handleOnDestroy() {
+        super.handleOnDestroy()
+        val orphan = synchronized(lock) {
+            val p = pending
+            pending = null
+            p
+        }
+        orphan?.reject("destroyed", "destroyed")
+    }
+
     @PluginMethod
     fun authenticate(call: PluginCall) {
-        if (status() != "available") {
-            call.resolve(JSObject().put("success", false).put("reason", status())); return
+        val s = status()
+        if (s != "available") {
+            call.resolve(JSObject().put("success", false).put("reason", s))
+            return
         }
-        val act = activity as? FragmentActivity ?: run {
-            call.resolve(JSObject().put("success", false).put("reason", "no_activity")); return
+        val act = activity as? FragmentActivity
+        if (act == null) {
+            call.resolve(JSObject().put("success", false).put("reason", "no_activity"))
+            return
         }
+        val previous = synchronized(lock) {
+            val p = pending
+            pending = call
+            p
+        }
+        previous?.reject("superseded", "superseded")
+
         val title = call.getString("title") ?: "Unlock FitSaathi"
         val subtitle = call.getString("subtitle")
         val negative = call.getString("negativeButton") ?: "Use PIN"
         act.runOnUiThread {
-            val prompt = BiometricPrompt(act, ContextCompat.getMainExecutor(act), object : BiometricPrompt.AuthenticationCallback() {
+            val callback = object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    call.resolve(JSObject().put("success", true))
+                    finish(call, JSObject().put("success", true))
                 }
+
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     val reason = when (errorCode) {
                         BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_CANCELED -> "cancelled"
                         BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> "lockout"
                         else -> "error:$errorCode"
                     }
-                    call.resolve(JSObject().put("success", false).put("reason", reason))
+                    finish(call, JSObject().put("success", false).put("reason", reason))
                 }
+
                 override fun onAuthenticationFailed() { /* wrong finger: prompt stays open */ }
-            })
-            val info = BiometricPrompt.PromptInfo.Builder()
-                .setTitle(title)
-                .apply { if (subtitle != null) setSubtitle(subtitle) }
-                .setNegativeButtonText(negative)
-                .setAllowedAuthenticators(authenticators)
-                .setConfirmationRequired(false)
-                .build()
-            prompt.authenticate(info)
+            }
+            try {
+                val prompt = BiometricPrompt(act, ContextCompat.getMainExecutor(act), callback)
+                val builder = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(title)
+                    .setNegativeButtonText(negative)
+                    .setAllowedAuthenticators(authenticators)
+                    .setConfirmationRequired(false)
+                if (subtitle != null) builder.setSubtitle(subtitle)
+                prompt.authenticate(builder.build())
+            } catch (e: Exception) {
+                finish(call, JSObject().put("success", false).put("reason", "error:${e.message}"))
+            }
         }
     }
 }

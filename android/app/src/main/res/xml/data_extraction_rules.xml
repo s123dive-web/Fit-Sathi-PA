@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ backup / device-transfer rules (allowBackup is false; these rules are belt-and-braces).
+     Photos and not-yet-applied notification actions never leave the device. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="photos" />
+        <exclude domain="sharedpref" path="fitsaathi_pending.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="photos" />
+        <exclude domain="sharedpref" path="fitsaathi_pending.xml" />
     </device-transfer>
 </data-extraction-rules>

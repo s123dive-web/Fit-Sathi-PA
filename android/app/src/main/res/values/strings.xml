@@ -4,5 +4,7 @@
     <string name="title_activity_main">FitSaathi</string>
     <string name="package_name">com.fitsaathi.app</string>
     <string name="custom_url_scheme">com.fitsaathi.app</string>
-    <string name="widget_description">Today's habits with one-tap ticks</string>
+    <string name="widget_description">Today\'s habits with one-tap ticks</string>
+    <string name="health_connect_rationale_title">FitSaathi &amp; Health Connect</string>
+    <string name="health_connect_rationale">FitSaathi asks Health Connect for one thing: permission to read your daily step count.\n\n• Read only. FitSaathi never writes to Health Connect and never changes your health data.\n• Stored on this device. Your steps are saved in FitSaathi\'s private database on your phone, next to your habits and meals, to show your activity on the Today and Progress tabs.\n• Never uploaded. FitSaathi has no server and no account. Nothing read from Health Connect leaves your device, is shared with third parties, or is used for advertising.\n• You stay in control. Revoke the permission at any time in Health Connect settings; FitSaathi then stops reading steps, and you can delete the stored values by clearing the app\'s data.</string>
 </resources>
