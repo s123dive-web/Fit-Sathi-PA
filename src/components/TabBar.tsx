@@ -25,7 +25,9 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
             className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium ${tab === tb.id ? 'text-brand-600' : 'text-slate-500'}`}
             aria-current={tab === tb.id ? 'page' : undefined}
           >
-            <span className="text-lg leading-none">{tb.icon}</span>
+            <span className="text-lg leading-none" aria-hidden="true">
+              {tb.icon}
+            </span>
             {t(`nav.${tb.id}`)}
           </button>
         ))}

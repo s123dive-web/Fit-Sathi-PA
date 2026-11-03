@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { t } from '../../i18n';
 
 const profileSave = vi.fn(async (_p: unknown) => undefined);
 const habitUpsert = vi.fn(async (_h: unknown) => undefined);
@@ -51,7 +52,8 @@ describe('<Onboarding />', () => {
     fireEvent.change(screen.getByLabelText('Profile JSON'), { target: { value: sampleText } });
     fireEvent.click(screen.getByText('Validate pasted'));
     const useBtn = await screen.findByText('Use this profile for Suresh');
-    expect(screen.getByText('user.heightCm')).toBeInTheDocument();
+    expect(screen.getByText(t('import.labels.user.heightCm'))).toBeInTheDocument();
+    expect(screen.queryByText('user.heightCm')).toBeNull();
     fireEvent.click(useBtn);
     await waitFor(() => expect(profileSave).toHaveBeenCalledTimes(1));
     const saved = profileSave.mock.calls[0][0] as { user: { name: string }; supplements: { id: string }[] };

@@ -35,7 +35,27 @@
     "optional": "optional",
     "auto": "auto",
     "markDone": "Mark done",
-    "markNotDone": "Mark not done"
+    "markNotDone": "Mark not done",
+    "ok": "OK",
+    "more": "More",
+    "moreActions": "More actions for {name}",
+    "actionFailed": "Something went wrong: {msg}",
+    "holdToConfirm": "Press and hold to confirm",
+    "keepHolding": "Keep holding…",
+    "typeToConfirm": "Type {word} to confirm",
+    "timeIgnored": "That time was not valid — keeping {time}.",
+    "undo": "Undo",
+    "xpGain": "+{n} XP",
+    "discardTitle": "Discard changes?",
+    "discardBody": "You have unsaved changes. Close without saving?",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "required": "Required",
+    "range": "Enter a number between {min} and {max}",
+    "kg": "kg",
+    "lb": "lb",
+    "advanced": "Advanced",
+    "off": "off"
   },
   "onboarding": {
     "importTitle": "📄 Import profile JSON",
@@ -57,7 +77,82 @@
     "identical": "Identical to the current profile.",
     "overwrite": "Overwrite profile",
     "useFor": "Use this profile for {name}",
-    "hint": "Schema: src/schema/profile.schema.json · sample: sample/suresh_profile.json"
+    "hint": "Need the format? See the sample profile in the repo.",
+    "placeholder": "Paste profile JSON here…",
+    "pickFailed": "Could not open the file: {msg}",
+    "habitLabel": "Habit: {name}",
+    "supplementLabel": "Supplement: {name}",
+    "labels": {
+      "schemaVersion": "Format version",
+      "user": {
+        "name": "Name",
+        "age": "Age",
+        "sex": "Sex",
+        "city": "City",
+        "heightCm": "Height (cm)",
+        "currentWeightKg": "Current weight (kg)",
+        "targetWeightKg": "Target weight (kg)",
+        "activityLevel": "Activity level",
+        "dietType": "Diet type",
+        "cuisine": "Cuisine",
+        "appearanceGoals": "Appearance goals"
+      },
+      "fasting": {
+        "enabled": "Intermittent fasting",
+        "eatStart": "Eating window opens",
+        "eatEnd": "Eating window closes"
+      },
+      "sleep": {
+        "bedtime": "Bedtime",
+        "wake": "Wake up"
+      },
+      "water": {
+        "targetMl": "Water target (ml)"
+      },
+      "workout": {
+        "enabled": "Workout slot",
+        "start": "Workout start",
+        "end": "Workout end",
+        "days": "Workout days",
+        "location": "Workout location",
+        "alarm": "Workout alarm"
+      },
+      "notifications": {
+        "motivational": {
+          "enabled": "Motivational messages",
+          "times": "Motivational times"
+        },
+        "fastingWarningMinutesBefore": "Fasting warning (minutes before)",
+        "supplementAlarms": "Supplement alarms",
+        "workoutAlarm": "Workout alarm notification",
+        "habitReminders": "Habit reminders",
+        "eveningCheckIn": "Evening check-in",
+        "waterReminders": "Water reminders",
+        "waterReminderIntervalMin": "Water reminder interval (minutes)",
+        "fastingWindow": "Fasting window notifications",
+        "pinnedChecklist": "Pinned habit notification"
+      },
+      "privacy": {
+        "photoConsent": "Progress photos",
+        "driveBackup": "Google Drive backup",
+        "futureLookCloud": "AI future look (cloud)"
+      },
+      "nutritionTargets": {
+        "kcal": "Calorie target",
+        "proteinG": "Protein target"
+      },
+      "preferences": {
+        "theme": "Theme",
+        "weightUnit": "Weight unit",
+        "heightUnit": "Height unit"
+      },
+      "typicalMeals": {
+        "breakfast": "Usual breakfast",
+        "lunch": "Usual lunch",
+        "dinner": "Usual dinner",
+        "snacks": "Usual snacks"
+      }
+    }
   },
   "today": {
     "greetingMorning": "Good morning",
@@ -101,7 +196,23 @@
     "stepsFrom": "From Health Connect",
     "connect": "Connect",
     "waterTarget": "Water target reached! 💧",
-    "milestone": "{n}-day streak! 🎉"
+    "milestone": "{n}-day streak! 🎉",
+    "habitDone": "{name}: done",
+    "habitMarkDone": "{name}: mark done",
+    "supplementTaken": "{name} {time}: taken",
+    "supplementMarkTaken": "{name} {time}: mark taken",
+    "reminderAt": "reminder {time}",
+    "streakShort": "{n}-day streak",
+    "fastingRatio": "{fast}:{eat} fasting",
+    "clearStatus": "Clear status",
+    "waterOf": "of {target} L",
+    "waterLitres": "{n} L",
+    "weightRange": "Enter a weight between {min} and {max} {unit}",
+    "weightInvalid": "Enter a valid weight",
+    "weightSaved": "Weight saved",
+    "noStreakSupplement": "No streak yet",
+    "alarmOn": "alarm",
+    "quickActions": "Quick actions"
   },
   "habits": {
     "title": "Habits",
@@ -111,7 +222,7 @@
     "create": "Create habit",
     "archived": "Archived ({n})",
     "strength": "Strength",
-    "strengthHint": "Loop-style score, gentle decay",
+    "strengthHint": "How consistently you keep it up",
     "currentStreak": "Current streak",
     "best": "best {n} {unit}",
     "last30": "Last 30 days",
@@ -139,7 +250,30 @@
     "pending": "pending",
     "legendDone": "done",
     "legendSkipped": "skipped",
-    "legendMissed": "missed"
+    "legendMissed": "missed",
+    "perWeekCount": {
+      "one": "{n}× / week",
+      "other": "{n}× / week"
+    },
+    "namePlaceholder": "e.g. Evening walk",
+    "archiveTitle": "Archive “{name}”?",
+    "archiveBody": "It disappears from Today and the widget but keeps its history. You can restore it from the archived list.",
+    "archived1": "“{name}” archived",
+    "deleteTitle": "Delete “{name}” for good?",
+    "deleteBody": "This removes the habit and every day you logged for it. Earned XP stays. This cannot be undone.",
+    "deleteForever": "Delete forever",
+    "cellLabel": "{date}: {status}",
+    "notScheduled": "not scheduled",
+    "noLog": "no entry",
+    "future": "upcoming",
+    "xpRange": "XP must be between {min} and {max}",
+    "bestUnit": {
+      "days": "days",
+      "weeks": "weeks"
+    },
+    "unitDays": "days",
+    "unitWeeks": "weeks",
+    "streakCount": "🔥 {n}"
   },
   "food": {
     "title": "Food",
@@ -177,7 +311,23 @@
     "nonVeg": "non-veg",
     "all": "All",
     "prevDay": "Previous day",
-    "nextDay": "Next day"
+    "nextDay": "Next day",
+    "logFoodTitle": "Log food",
+    "kcal": "kcal",
+    "grams": "g",
+    "gramsLabel": "{label} (g)",
+    "macroLine": "{kcal} kcal · P {p} · C {c} · F {f}",
+    "pickerLine": "{serving} · {kcal} kcal · P {p}g",
+    "perTarget": "/ {n} g",
+    "servingsMult": "× {n}",
+    "backToToday": "Back to today",
+    "servingsRange": "Servings must be between {min} and {max}",
+    "servingsLess": "Fewer servings",
+    "servingsMore": "More servings",
+    "logFailed": "Could not log the meal: {msg}",
+    "macroNegative": "Must be 0 or more",
+    "windowRange": "{start}–{end}",
+    "macroRest": "P {p} g · C {c} g · F {f} g"
   },
   "progress": {
     "title": "Progress",
@@ -214,8 +364,8 @@
     "futureKeepLogging": "Keep logging weight and photos — a text projection appears once a trend is visible.",
     "yourGoal": "Your goal: “{goal}”",
     "photoTimeline": "Photo timeline: {n} photos from {from} to {to}. Open the Photos tab to compare.",
-    "cloudTitle": "AI image preview (v2, optional)",
-    "cloudBody": "Sends your photo to a cloud service. Off by default. Not active in this version — this only records your preference.",
+    "cloudTitle": "AI future look (coming later)",
+    "cloudBody": "Coming later — nothing is sent anywhere in this version. This only records your preference.",
     "cloudConfirm": "This would upload a progress photo to a cloud image service when the feature ships. Enable the preference?",
     "cloudOn": "Cloud future-look preference saved (feature not yet active)",
     "cloudOff": "Cloud future-look stays off",
@@ -236,7 +386,18 @@
     "deletePhoto": "Delete this photo permanently?",
     "photoSaved": "Photo saved (encrypted, on-device)",
     "consentFirst": "Enable photo consent in Profile first",
-    "captureFailed": "Could not capture: {msg}"
+    "captureFailed": "Could not capture: {msg}",
+    "seriesWeight": "Weight",
+    "seriesMa7": "7-day avg",
+    "seriesProjection": "Projection",
+    "photoAlt": "Progress photo from {date}",
+    "unreadable": "Could not open this photo",
+    "lastWeighIn": "Last weigh-in {date}",
+    "staleHint": "Log a new weight to refresh the projection.",
+    "weeksCompare": "{a} vs {b} weeks",
+    "deletePhotoTitle": "Delete this photo?",
+    "deletePhotoBody": "The encrypted file is removed from this phone. There is no undo.",
+    "weeklyLine": "{habits}% · {water} L · {workouts} workouts · {delta}"
   },
   "profile": {
     "title": "Profile",
@@ -303,7 +464,17 @@
     "eraseConfirm": "Erase ALL data on this device (profile, habits, logs, photos metadata)? This cannot be undone.",
     "footer": "FitSaathi · offline-first · no accounts, no analytics",
     "driveBackup": "Google Drive backup",
-    "driveHint": "Lets you pick Drive as the destination in the file picker"
+    "driveHint": "Lets you pick Drive as the destination in the file picker",
+    "advanced": "Advanced",
+    "jsonHint": "Export your profile as a file or import one. Imports are checked and show the changes before anything is overwritten.",
+    "eraseTitle": "Erase all data?",
+    "eraseBody": "This removes your profile, habits, logs, meals, weights, photos and settings from this phone. It cannot be undone.",
+    "eraseWord": "ERASE",
+    "erased": "All data erased",
+    "fastingOffHint": "Turn on intermittent fasting in your profile to get these notifications.",
+    "exportFailed": "Export failed: {msg}",
+    "restoreFailed": "Could not open that backup: {msg}",
+    "supplementAt": "{name} {time}"
   },
   "form": {
     "about": "About you",
@@ -367,14 +538,25 @@
     "other": "Other",
     "daily": "Daily",
     "weekly": "N× per week",
-    "weekdays": "Weekdays"
+    "weekdays": "Weekdays",
+    "currentWeightUnit": "Current weight ({unit})",
+    "targetWeightUnit": "Target weight ({unit})",
+    "ageRange": "Age must be between {min} and {max}",
+    "heightRange": "Height must be between {min} and {max} cm",
+    "weightRange": "Weight must be between {min} and {max} {unit}",
+    "waterRange": "Water target must be between {min} and {max} ml",
+    "ftInRange": "Height must be between {min} and {max}",
+    "invalidNumber": "Enter a number"
   },
   "errors": {
     "dbTitle": "Could not open the local database",
     "updatedFromNotification": "Updated from notification",
     "loadFailed": "Couldn't load this screen",
     "retry": "Try again",
-    "weeklyFailed": "Weekly summaries could not be updated"
+    "weeklyFailed": "Weekly summaries could not be updated",
+    "actionFailed": "A notification action could not be applied",
+    "weightRange": "Enter a weight between 20 and 400 kg",
+    "servingsRange": "Servings must be a number above 0"
   },
   "alarms": {
     "supplementBody": "Time for {name}",
@@ -419,7 +601,10 @@
     "pinChanged": "PIN changed.",
     "lockOff": "App lock turned off.",
     "wrongPin": "Wrong PIN",
-    "attemptsLeft": "{n} attempts left before a cooldown",
+    "attemptsLeft": {
+      "one": "{n} attempt left before a cooldown",
+      "other": "{n} attempts left before a cooldown"
+    },
     "lockedOut": "Too many attempts. Try again in {s}.",
     "unlockWithBiometric": "Unlock with fingerprint",
     "lockedTitle": "FitSaathi is locked",
@@ -430,6 +615,59 @@
     "biometricPrompt": "Unlock FitSaathi",
     "biometricSubtitle": "Confirm it's you",
     "usePin": "Use PIN",
-    "delete": "Delete"
+    "delete": "Delete",
+    "noPin": "The lock is set up but no PIN is stored. Use “Forgot PIN?” below to reset.",
+    "changePinVerify": "Enter current PIN",
+    "changePinNew": "Enter a new 4-digit PIN",
+    "changePinConfirm": "Confirm the new PIN",
+    "pinSaveFailed": "Could not save the PIN: {msg}",
+    "erasing": "Erasing…",
+    "digitsEntered": "{n} of {total} digits entered"
+  },
+  "days": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+  "activity": {
+    "sedentary": "Sedentary",
+    "light": "Lightly active",
+    "moderate": "Moderately active",
+    "active": "Active",
+    "very_active": "Very active"
+  },
+  "backup": {
+    "tooLarge": "This file is too large to be a FitSaathi backup (limit 50 MB)",
+    "notJson": "Not valid JSON",
+    "notBackup": "Not a FitSaathi backup file",
+    "unsupportedFormat": "Unsupported backup format ({format}); this app reads format 2",
+    "badSchemaVersion": "The backup's schema version is missing or invalid",
+    "newerVersion": "Backup is from a newer app version (schema v{v}, this app has v{cur}). Update the app first.",
+    "missingPayload": "Encrypted backup is missing its payload",
+    "noTables": "Backup has no tables",
+    "corrupt": "Backup file is damaged: {reason}",
+    "noMigration": "No migration path from schema v{v}",
+    "unknownTable": "Unknown table \"{table}\"",
+    "tableNotList": "Table \"{table}\" is not a list",
+    "badRow": "Table \"{table}\", row {row}: not an object",
+    "badColumn": "Table \"{table}\": invalid column name \"{column}\"",
+    "badDate": "Table \"{table}\", row {row}: \"{column}\" is not a valid date",
+    "badValue": "Table \"{table}\", row {row}: invalid value in \"{column}\"",
+    "tables": {
+      "habits": "Habits",
+      "habit_logs": "Habit entries",
+      "supplement_logs": "Supplement entries",
+      "water_logs": "Water entries",
+      "weight_logs": "Weight entries",
+      "meal_logs": "Meals",
+      "photos": "Photos (metadata)",
+      "food_items": "Foods",
+      "weekly_summaries": "Weekly summaries",
+      "points_ledger": "XP entries"
+    }
   }
 }

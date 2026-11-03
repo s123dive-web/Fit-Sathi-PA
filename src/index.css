@@ -56,9 +56,14 @@ body,
   height: 16px;
   border-radius: 2px;
   opacity: 0.95;
-  animation-name: confetti-fall;
-  animation-timing-function: cubic-bezier(0.25, 0.8, 0.5, 1);
-  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .confetti-piece {
+    animation-name: confetti-fall;
+    animation-timing-function: cubic-bezier(0.25, 0.8, 0.5, 1);
+    animation-fill-mode: forwards;
+  }
 }
 
 @keyframes confetti-fall {
@@ -78,5 +83,39 @@ body,
     grid-template-columns: env(viewport-segment-width 0 0) env(viewport-segment-width 1 0);
     column-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0));
     max-width: none;
+  }
+}
+
+/* Shake for a wrong PIN; only moves when the user has not asked for reduced motion. */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-shake {
+    animation: shake 0.4s ease-in-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece,
+  .animate-xp-pop,
+  .animate-tick-bounce,
+  .animate-shake {
+    animation: none !important;
+  }
+  .animate-xp-pop {
+    opacity: 1;
   }
 }

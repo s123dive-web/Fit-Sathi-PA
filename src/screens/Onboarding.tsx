@@ -101,7 +101,7 @@ export function Onboarding({ existing }: { existing: Profile | null }) {
 
       {step === 'manual' && (
         <div className="space-y-4">
-          <ProfileForm value={draft} onChange={setDraft} heightUnit={heightUnit} onHeightUnit={setHeightUnit} />
+          <ProfileForm value={draft} onChange={setDraft} heightUnit={heightUnit} onHeightUnit={setHeightUnit} weightUnit={draft.preferences?.weightUnit ?? 'kg'} />
           <Card>
             <label className="flex min-h-[44px] items-center gap-2 text-sm">
               <input type="checkbox" checked={createHabits} onChange={(e) => setCreateHabits(e.target.checked)} />

@@ -1,25 +1,32 @@
 import { useEffect, useState } from 'react';
 import type { Settings } from '../types';
 import { PinPad } from '../components/PinPad';
-import { Modal } from '../components/ui';
+import { ConfirmDialog, Modal } from '../components/ui';
 import { attemptPin, biometricUnlock, remainingLockout, unlockApp } from '../services/security';
+import { eraseAllData } from '../services/erase';
 import { FitBiometric } from '../native/plugins';
-import { getDb } from '../db/database';
-import { notifyChange } from '../store/appStore';
+import { toast } from '../store/appStore';
 import { successHaptic } from '../utils/haptics';
-import { t } from '../i18n';
+import { t, tn } from '../i18n';
 
 export function LockScreen({ settings, name }: { settings: Settings; name: string }) {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(() => remainingLockout(settings));
   const [bioAvailable, setBioAvailable] = useState(false);
   const [forgot, setForgot] = useState(false);
+  const [confirmErase, setConfirmErase] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  const [shakeKey, setShakeKey] = useState(0);
 
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(id);
+  }, [cooldown]);
+
+  // When the cooldown ends, the "try again in …" message must go with it.
+  useEffect(() => {
+    if (cooldown === 0) setError(null);
   }, [cooldown]);
 
   useEffect(() => {
@@ -40,18 +47,28 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
   }, [settings.biometricEnabled]);
 
   const submit = async (pin: string) => {
-    const r = await attemptPin(pin);
+    let r: Awaited<ReturnType<typeof attemptPin>>;
+    try {
+      r = await attemptPin(pin);
+    } catch (e) {
+      setShakeKey((k) => k + 1);
+      setError(t('common.actionFailed', { msg: e instanceof Error ? e.message : String(e) }));
+      return;
+    }
     if (r.ok) {
       void successHaptic();
       unlockApp();
       return;
     }
     setResetKey((k) => k + 1);
-    if (r.lockedForSec) {
+    setShakeKey((k) => k + 1);
+    if (r.reason === 'no_pin') {
+      setError(t('security.noPin'));
+    } else if (r.lockedForSec) {
       setCooldown(r.lockedForSec);
       setError(t('security.lockedOut', { s: fmt(r.lockedForSec) }));
     } else {
-      setError(`${t('security.wrongPin')} · ${t('security.attemptsLeft', { n: r.attemptsLeft })}`);
+      setError(`${t('security.wrongPin')} · ${tn('security.attemptsLeft', r.attemptsLeft)}`);
     }
   };
 
@@ -59,7 +76,9 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
     <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950" style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}>
       <div className="flex min-h-full flex-col items-center justify-center px-6 py-6">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 text-3xl text-white">🔒</div>
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 text-3xl text-white" aria-hidden="true">
+            🔒
+          </div>
           <h1 className="text-xl font-bold">{t('security.lockedTitle')}</h1>
           <p className="text-sm text-slate-500">
             {name ? `${name} · ` : ''}
@@ -71,6 +90,7 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
           error={cooldown > 0 ? t('security.lockedOut', { s: fmt(cooldown) }) : error}
           disabled={cooldown > 0}
           resetKey={resetKey}
+          shakeKey={shakeKey}
           extraKey={
             bioAvailable
               ? {
@@ -100,16 +120,7 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
             <button className="btn-ghost" onClick={() => setForgot(false)}>
               {t('common.cancel')}
             </button>
-            <button
-              className="btn-danger"
-              onClick={async () => {
-                if (!confirm(t('profile.eraseConfirm'))) return;
-                const db = await getDb();
-                await db.wipe();
-                unlockApp();
-                notifyChange();
-              }}
-            >
+            <button className="btn-danger" onClick={() => setConfirmErase(true)}>
               {t('security.eraseAndReset')}
             </button>
           </>
@@ -117,6 +128,20 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
       >
         <p className="text-sm text-slate-600 dark:text-slate-300">{t('security.forgotBody')}</p>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmErase}
+        title={t('profile.eraseTitle')}
+        body={t('profile.eraseBody')}
+        confirmLabel={t('security.eraseAndReset')}
+        typedWord={t('profile.eraseWord')}
+        onClose={() => setConfirmErase(false)}
+        onConfirm={async () => {
+          await eraseAllData();
+          setForgot(false);
+          toast(t('profile.erased'), 'success');
+        }}
+      />
     </div>
   );
 }

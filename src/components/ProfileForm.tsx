@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import type { ActivityLevel, DayName, DietType, HeightUnit, Profile, ProfileHabit, Supplement } from '../types';
+import { useRef, useState } from 'react';
+import type { ActivityLevel, DayName, DietType, HeightUnit, Profile, ProfileHabit, Supplement, WeightUnit } from '../types';
 import { Card, Field, TimeInput, Toggle, WeekdayPicker } from './ui';
 import { newId } from '../utils/ids';
-import { cmToFtIn, ftInToCm } from '../utils/units';
+import { cmToFtIn, displayWeight, ftInToCm, parseWeightInput } from '../utils/units';
 import { dayNamesToWeekdays } from '../utils/dates';
 import { t } from '../i18n';
 
@@ -10,24 +10,110 @@ const ACTIVITY: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', '
 const DIETS: DietType[] = ['veg', 'egg', 'non-veg', 'vegan', 'jain', 'other'];
 const DAY_NAMES: DayName[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+const LIMITS = {
+  age: { min: 10, max: 100 },
+  heightCm: { min: 100, max: 250 },
+  weightKg: { min: 20, max: 400 },
+  waterMl: { min: 500, max: 10000 },
+};
+
+type NumKey = 'age' | 'heightCm' | 'ft' | 'inch' | 'currentWeight' | 'targetWeight' | 'waterMl';
+
+function parseNum(s: string): number | null {
+  const v = s.trim().replace(',', '.');
+  if (v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Profile editor. Numeric fields keep string state so they can be cleared while typing; a value is only
+ * written to the profile when it parses and is in range, and an inline message says what is wrong otherwise.
+ */
 export function ProfileForm({
   value,
   onChange,
   heightUnit,
   onHeightUnit,
+  weightUnit = 'kg',
 }: {
   value: Profile;
   onChange: (p: Profile) => void;
   heightUnit: HeightUnit;
   onHeightUnit: (u: HeightUnit) => void;
+  weightUnit?: WeightUnit;
 }) {
   const p = value;
   const set = (patch: Partial<Profile>) => onChange({ ...p, ...patch });
   const setUser = (patch: Partial<Profile['user']>) => set({ user: { ...p.user, ...patch } });
-  const [ftIn, setFtIn] = useState(() => cmToFtIn(p.user.heightCm));
+  const unitLabel = t(`common.${weightUnit}`);
+  const wMin = displayWeight(LIMITS.weightKg.min, weightUnit);
+  const wMax = displayWeight(LIMITS.weightKg.max, weightUnit);
+
+  const [strs, setStrs] = useState<Record<NumKey, string>>(() => {
+    const { ft, inch } = cmToFtIn(p.user.heightCm);
+    return {
+      age: String(p.user.age),
+      heightCm: String(p.user.heightCm),
+      ft: String(ft),
+      inch: String(inch),
+      currentWeight: String(displayWeight(p.user.currentWeightKg, weightUnit)),
+      targetWeight: String(displayWeight(p.user.targetWeightKg, weightUnit)),
+      waterMl: String(p.water.targetMl),
+    };
+  });
+  const setStr = (k: NumKey, v: string) => setStrs((s) => ({ ...s, [k]: v }));
+
+  const errorFor = (k: NumKey): string | null => {
+    const n = parseNum(strs[k]);
+    if (n === null) return strs[k].trim() === '' ? t('common.required') : t('form.invalidNumber');
+    switch (k) {
+      case 'age':
+        return n < LIMITS.age.min || n > LIMITS.age.max ? t('form.ageRange', LIMITS.age) : null;
+      case 'heightCm':
+        return n < LIMITS.heightCm.min || n > LIMITS.heightCm.max ? t('form.heightRange', LIMITS.heightCm) : null;
+      case 'ft':
+      case 'inch': {
+        const cm = ftInToCm(parseNum(strs.ft) ?? 0, parseNum(strs.inch) ?? 0);
+        return cm < LIMITS.heightCm.min || cm > LIMITS.heightCm.max ? t('form.ftInRange', { min: '3′ 4″', max: '8′ 2″' }) : null;
+      }
+      case 'currentWeight':
+      case 'targetWeight': {
+        const kg = parseWeightInput(n, weightUnit);
+        return kg < LIMITS.weightKg.min || kg > LIMITS.weightKg.max ? t('form.weightRange', { min: wMin, max: wMax, unit: unitLabel }) : null;
+      }
+      case 'waterMl':
+        return n < LIMITS.waterMl.min || n > LIMITS.waterMl.max ? t('form.waterRange', LIMITS.waterMl) : null;
+    }
+  };
+
+  const numInput = (k: NumKey, apply: (n: number) => void, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <input
+      className="input"
+      type="number"
+      inputMode="decimal"
+      value={strs[k]}
+      aria-invalid={!!errorFor(k)}
+      onChange={(e) => {
+        setStr(k, e.target.value);
+        const n = parseNum(e.target.value);
+        if (n !== null) apply(n);
+      }}
+      {...extra}
+    />
+  );
 
   const updateSupplement = (id: string, patch: Partial<Supplement>) => set({ supplements: p.supplements.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const updateHabit = (i: number, patch: Partial<ProfileHabit>) => set({ habits: p.habits.map((h, idx) => (idx === i ? { ...h, ...patch } : h)) });
+
+  // Stable keys for habit rows (ProfileHabit has no id): one generated key per row position, kept in sync on add/remove.
+  const habitKeys = useRef<string[]>([]);
+  while (habitKeys.current.length < p.habits.length) habitKeys.current.push(newId('row'));
+  if (habitKeys.current.length > p.habits.length) habitKeys.current.length = p.habits.length;
+  const removeHabit = (i: number) => {
+    habitKeys.current.splice(i, 1);
+    set({ habits: p.habits.filter((_, idx) => idx !== i) });
+  };
 
   return (
     <div className="space-y-4">
@@ -38,8 +124,10 @@ export function ProfileForm({
               <input className="input" value={p.user.name} onChange={(e) => setUser({ name: e.target.value })} placeholder={t('form.name')} />
             </Field>
           </div>
-          <Field label={t('form.age')}>
-            <input className="input" type="number" min={10} max={120} value={p.user.age} onChange={(e) => setUser({ age: Number(e.target.value) })} />
+          <Field label={t('form.age')} error={errorFor('age')}>
+            {numInput('age', (n) => {
+              if (n >= LIMITS.age.min && n <= LIMITS.age.max) setUser({ age: Math.round(n) });
+            }, { min: LIMITS.age.min, max: LIMITS.age.max, inputMode: 'numeric' })}
           </Field>
           <Field label={t('form.sex')}>
             <select className="input" value={p.user.sex ?? 'other'} onChange={(e) => setUser({ sex: e.target.value as Profile['user']['sex'] })}>
@@ -60,60 +148,53 @@ export function ProfileForm({
       <Card title={t('form.body')}>
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('profile.heightUnit')}>
-            <select className="input" value={heightUnit} onChange={(e) => onHeightUnit(e.target.value as HeightUnit)}>
+            <select
+              className="input"
+              value={heightUnit}
+              onChange={(e) => {
+                const u = e.target.value as HeightUnit;
+                const { ft, inch } = cmToFtIn(p.user.heightCm);
+                setStrs((s) => ({ ...s, heightCm: String(Math.round(p.user.heightCm)), ft: String(ft), inch: String(inch) }));
+                onHeightUnit(u);
+              }}
+            >
               <option value="cm">cm</option>
               <option value="ft_in">ft / in</option>
             </select>
           </Field>
           {heightUnit === 'cm' ? (
-            <Field label={t('form.heightCm')}>
-              <input className="input" type="number" value={p.user.heightCm} onChange={(e) => setUser({ heightCm: Number(e.target.value) })} />
+            <Field label={t('form.heightCm')} error={errorFor('heightCm')}>
+              {numInput('heightCm', (n) => {
+                if (n >= LIMITS.heightCm.min && n <= LIMITS.heightCm.max) setUser({ heightCm: n });
+              }, { min: LIMITS.heightCm.min, max: LIMITS.heightCm.max })}
             </Field>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <Field label={t('form.ft')}>
-                <input
-                  className="input"
-                  type="number"
-                  value={ftIn.ft}
-                  onChange={(e) => {
-                    const next = { ...ftIn, ft: Number(e.target.value) };
-                    setFtIn(next);
-                    setUser({ heightCm: ftInToCm(next.ft, next.inch) });
-                  }}
-                />
+              <Field label={t('form.ft')} error={errorFor('ft')}>
+                {numInput('ft', (n) => {
+                  const cm = ftInToCm(n, parseNum(strs.inch) ?? 0);
+                  if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
+                }, { min: 3, max: 8, inputMode: 'numeric' })}
               </Field>
-              <Field label={t('form.in')}>
-                <input
-                  className="input"
-                  type="number"
-                  value={ftIn.inch}
-                  onChange={(e) => {
-                    const next = { ...ftIn, inch: Number(e.target.value) };
-                    setFtIn(next);
-                    setUser({ heightCm: ftInToCm(next.ft, next.inch) });
-                  }}
-                />
+              <Field label={t('form.in')} error={errorFor('inch')}>
+                {numInput('inch', (n) => {
+                  const cm = ftInToCm(parseNum(strs.ft) ?? 0, n);
+                  if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
+                }, { min: 0, max: 11, inputMode: 'numeric' })}
               </Field>
             </div>
           )}
-          <Field label={t('form.currentWeight')}>
-            <input
-              className="input"
-              type="number"
-              step="0.1"
-              value={p.user.currentWeightKg}
-              onChange={(e) => setUser({ currentWeightKg: Number(e.target.value) })}
-            />
+          <Field label={t('form.currentWeightUnit', { unit: unitLabel })} error={errorFor('currentWeight')}>
+            {numInput('currentWeight', (n) => {
+              const kg = parseWeightInput(n, weightUnit);
+              if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ currentWeightKg: Math.round(kg * 10) / 10 });
+            }, { step: '0.1', min: wMin, max: wMax })}
           </Field>
-          <Field label={t('form.targetWeight')}>
-            <input
-              className="input"
-              type="number"
-              step="0.1"
-              value={p.user.targetWeightKg}
-              onChange={(e) => setUser({ targetWeightKg: Number(e.target.value) })}
-            />
+          <Field label={t('form.targetWeightUnit', { unit: unitLabel })} error={errorFor('targetWeight')}>
+            {numInput('targetWeight', (n) => {
+              const kg = parseWeightInput(n, weightUnit);
+              if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ targetWeightKg: Math.round(kg * 10) / 10 });
+            }, { step: '0.1', min: wMin, max: wMax })}
           </Field>
           <div className="col-span-2">
             <Field label={t('form.activity')}>
@@ -164,8 +245,10 @@ export function ProfileForm({
               <TimeInput value={p.sleep.wake} onChange={(v) => set({ sleep: { ...p.sleep, wake: v } })} />
             </Field>
           </div>
-          <Field label={t('form.waterTarget')}>
-            <input className="input" type="number" step={250} value={p.water.targetMl} onChange={(e) => set({ water: { targetMl: Number(e.target.value) } })} />
+          <Field label={t('form.waterTarget')} error={errorFor('waterMl')}>
+            {numInput('waterMl', (n) => {
+              if (n >= LIMITS.waterMl.min && n <= LIMITS.waterMl.max) set({ water: { targetMl: Math.round(n) } });
+            }, { step: 250, min: LIMITS.waterMl.min, max: LIMITS.waterMl.max, inputMode: 'numeric' })}
           </Field>
         </div>
       </Card>
@@ -224,17 +307,24 @@ export function ProfileForm({
                   <input
                     className="input"
                     placeholder={t('form.supplementName')}
+                    aria-label={t('form.supplementName')}
                     value={s.name}
                     onChange={(e) => updateSupplement(s.id, { name: e.target.value })}
                   />
                 </div>
-                <input className="input" placeholder={t('form.dose')} value={s.dose} onChange={(e) => updateSupplement(s.id, { dose: e.target.value })} />
-                <TimeInput value={s.time} onChange={(v) => updateSupplement(s.id, { time: v })} />
+                <input
+                  className="input"
+                  placeholder={t('form.dose')}
+                  aria-label={t('form.dose')}
+                  value={s.dose}
+                  onChange={(e) => updateSupplement(s.id, { dose: e.target.value })}
+                />
+                <TimeInput value={s.time} onChange={(v) => updateSupplement(s.id, { time: v })} label={t('food.time')} />
               </div>
               <div className="mt-2 flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm">
+                <span className="flex items-center gap-2 text-sm">
                   <Toggle checked={s.alarm} onChange={(v) => updateSupplement(s.id, { alarm: v })} label={t('form.alarm')} /> {t('form.alarm')}
-                </label>
+                </span>
                 <button className="min-h-[44px] px-2 text-xs text-rose-600" onClick={() => set({ supplements: p.supplements.filter((x) => x.id !== s.id) })}>
                   {t('common.remove')}
                 </button>
@@ -255,10 +345,21 @@ export function ProfileForm({
         {p.habits.length === 0 && <p className="text-sm text-slate-500">{t('form.noHabits')}</p>}
         <div className="space-y-3">
           {p.habits.map((h, i) => (
-            <div key={i} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-              <input className="input" placeholder={t('form.habitName')} value={h.name} onChange={(e) => updateHabit(i, { name: e.target.value })} />
+            <div key={habitKeys.current[i]} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <input
+                className="input"
+                placeholder={t('form.habitName')}
+                aria-label={t('form.habitName')}
+                value={h.name}
+                onChange={(e) => updateHabit(i, { name: e.target.value })}
+              />
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <select className="input" value={h.schedule} onChange={(e) => updateHabit(i, { schedule: e.target.value as ProfileHabit['schedule'] })}>
+                <select
+                  className="input"
+                  aria-label={t('habits.schedule')}
+                  value={h.schedule}
+                  onChange={(e) => updateHabit(i, { schedule: e.target.value as ProfileHabit['schedule'] })}
+                >
                   <option value="daily">{t('form.daily')}</option>
                   <option value="weekly">{t('form.weekly')}</option>
                   <option value="weekdays">{t('form.weekdays')}</option>
@@ -269,8 +370,9 @@ export function ProfileForm({
                     type="number"
                     min={1}
                     max={7}
+                    aria-label={t('form.weekly')}
                     value={h.targetPerWeek ?? 1}
-                    onChange={(e) => updateHabit(i, { targetPerWeek: Number(e.target.value) || 1 })}
+                    onChange={(e) => updateHabit(i, { targetPerWeek: Math.min(7, Math.max(1, Number(e.target.value) || 1)) })}
                   />
                 )}
                 {h.schedule === 'weekdays' && (
@@ -280,7 +382,7 @@ export function ProfileForm({
                 )}
               </div>
               <div className="mt-2 flex justify-end">
-                <button className="min-h-[44px] px-2 text-xs text-rose-600" onClick={() => set({ habits: p.habits.filter((_, idx) => idx !== i) })}>
+                <button className="min-h-[44px] px-2 text-xs text-rose-600" onClick={() => removeHabit(i)}>
                   {t('common.remove')}
                 </button>
               </div>
@@ -299,18 +401,20 @@ export function ProfileForm({
               <input
                 className="input"
                 type="number"
+                min={0}
                 value={p.nutritionTargets?.kcal ?? ''}
                 placeholder={t('common.auto')}
-                onChange={(e) => set({ nutritionTargets: { ...p.nutritionTargets, kcal: e.target.value ? Number(e.target.value) : undefined } })}
+                onChange={(e) => set({ nutritionTargets: { ...p.nutritionTargets, kcal: e.target.value ? Math.max(0, Number(e.target.value)) : undefined } })}
               />
             </Field>
             <Field label={t('form.proteinTarget')}>
               <input
                 className="input"
                 type="number"
+                min={0}
                 value={p.nutritionTargets?.proteinG ?? ''}
                 placeholder={t('common.auto')}
-                onChange={(e) => set({ nutritionTargets: { ...p.nutritionTargets, proteinG: e.target.value ? Number(e.target.value) : undefined } })}
+                onChange={(e) => set({ nutritionTargets: { ...p.nutritionTargets, proteinG: e.target.value ? Math.max(0, Number(e.target.value)) : undefined } })}
               />
             </Field>
           </div>

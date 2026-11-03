@@ -5,7 +5,8 @@ import { t } from '../i18n';
 
 /**
  * Numeric keypad with 4 dots. Calls onComplete when PIN_LENGTH digits are entered.
- * `error` shakes the dots and clears the entry; `disabled` greys the keys (cooldown).
+ * `error` is displayed; bump `shakeKey` to shake the dots and clear the entry (once per wrong attempt,
+ * independent of the error text, which may tick every second during a cooldown).
  */
 export function PinPad({
   onComplete,
@@ -13,6 +14,7 @@ export function PinPad({
   disabled,
   extraKey,
   resetKey,
+  shakeKey,
 }: {
   onComplete: (pin: string) => void;
   error?: string | null;
@@ -21,6 +23,8 @@ export function PinPad({
   extraKey?: { label: string; icon: string; onPress: () => void };
   /** Change to clear the entered digits. */
   resetKey?: unknown;
+  /** Increment to shake the dots (wrong attempt). */
+  shakeKey?: number;
 }) {
   const [digits, setDigits] = useState('');
   const [shake, setShake] = useState(false);
@@ -30,12 +34,12 @@ export function PinPad({
   }, [resetKey]);
 
   useEffect(() => {
-    if (!error) return;
+    if (!shakeKey) return;
     setShake(true);
     setDigits('');
     const id = setTimeout(() => setShake(false), 450);
     return () => clearTimeout(id);
-  }, [error]);
+  }, [shakeKey]);
 
   const press = (d: string) => {
     if (disabled || digits.length >= PIN_LENGTH) return;
@@ -51,6 +55,7 @@ export function PinPad({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') back();
     };
@@ -64,8 +69,8 @@ export function PinPad({
   return (
     <div className="mx-auto w-full max-w-xs select-none">
       <div
-        className={`mb-6 flex justify-center gap-4 ${shake ? 'animate-[tick-bounce_0.3s_ease-out]' : ''}`}
-        aria-label={`${digits.length} of ${PIN_LENGTH} digits`}
+        className={`mb-6 flex justify-center gap-4 ${shake ? 'animate-shake' : ''}`}
+        aria-label={t('security.digitsEntered', { n: digits.length, total: PIN_LENGTH })}
         role="status"
       >
         {Array.from({ length: PIN_LENGTH }).map((_, i) => (
@@ -93,7 +98,7 @@ export function PinPad({
             aria-label={extraKey.label}
             disabled={disabled}
           >
-            {extraKey.icon}
+            <span aria-hidden="true">{extraKey.icon}</span>
           </button>
         ) : (
           <span />

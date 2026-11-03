@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 
 /**
@@ -17,10 +17,23 @@ export interface Confetti {
   label: string;
 }
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: number;
   message: string;
   kind: 'info' | 'success' | 'error';
+  /** Optional action button (e.g. "Undo"). */
+  action?: ToastAction;
+}
+
+export interface ToastOptions {
+  action?: ToastAction;
+  /** How long the toast stays, in ms (default 2600; 6000 when it carries an action). */
+  durationMs?: number;
 }
 
 interface AppState {
@@ -31,7 +44,8 @@ interface AppState {
   notifyChange: () => void;
   showXp: (amount: number, x?: number, y?: number) => void;
   celebrate: (label: string) => void;
-  toastMsg: (message: string, kind?: Toast['kind']) => void;
+  toastMsg: (message: string, kind?: Toast['kind'], opts?: ToastOptions) => void;
+  dismissToast: () => void;
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,11 +71,17 @@ export const useAppStore = create<AppState>((set) => ({
     set({ confetti: c });
     setTimeout(() => set((s) => (s.confetti?.id === c.id ? { confetti: null } : {})), 2600);
   },
-  toastMsg: (message, kind = 'info') => {
-    const t: Toast = { id: Date.now(), message, kind };
+  toastMsg: (message, kind = 'info', opts = {}) => {
+    const t: Toast = { id: Date.now() + Math.random(), message, kind, action: opts.action };
     set({ toast: t });
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => set((s) => (s.toast?.id === t.id ? { toast: null } : {})), 2600);
+    const duration = opts.durationMs ?? (opts.action ? 6000 : 2600);
+    toastTimer = setTimeout(() => set((s) => (s.toast?.id === t.id ? { toast: null } : {})), duration);
+  },
+  dismissToast: () => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+    set({ toast: null });
   },
 }));
 
@@ -69,7 +89,8 @@ export const useAppStore = create<AppState>((set) => ({
 export const notifyChange = (): void => useAppStore.getState().notifyChange();
 export const showXp = (amount: number, x?: number, y?: number): void => useAppStore.getState().showXp(amount, x, y);
 export const celebrate = (label: string): void => useAppStore.getState().celebrate(label);
-export const toast = (message: string, kind: Toast['kind'] = 'info'): void => useAppStore.getState().toastMsg(message, kind);
+export const toast = (message: string, kind: Toast['kind'] = 'info', opts?: ToastOptions): void => useAppStore.getState().toastMsg(message, kind, opts);
+export const dismissToast = (): void => useAppStore.getState().dismissToast();
 
 export function useRevision(): number {
   return useAppStore((s) => s.revision);
@@ -111,4 +132,76 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []):
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision, tick, ...deps]);
   return { data, loading, error, reload: () => setTick((t) => t + 1) };
+}
+
+export interface PendingActions<T> {
+  /** Optimistic value for a key while its action is in flight (undefined when idle). */
+  get: (key: string) => T | undefined;
+  has: (key: string) => boolean;
+  /**
+   * Run `action` for `key`, showing `optimistic` until the action resolves AND the data that
+   * follows the revision bump has landed (so the UI never snaps back to the stale value).
+   */
+  run: (key: string, optimistic: T, action: () => Promise<void>) => Promise<void>;
+}
+
+/**
+ * Per-item in-flight set for tap targets. Pass the screen's `data` so settled entries are released as
+ * soon as the reload that followed the write arrives; a safety timeout releases them regardless.
+ */
+export function usePendingActions<T>(data: unknown, onError?: (e: unknown) => void): PendingActions<T> {
+  const [map, setMap] = useState<Map<string, { value: T; settled: boolean }>>(() => new Map());
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    // New data landed: drop every entry whose action already finished.
+    setMap((m) => {
+      if (![...m.values()].some((e) => e.settled)) return m;
+      const next = new Map(m);
+      for (const [k, e] of next) if (e.settled) next.delete(k);
+      return next;
+    });
+  }, [data]);
+
+  const release = useCallback((key: string) => {
+    setMap((m) => {
+      if (!m.has(key)) return m;
+      const next = new Map(m);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const run = useCallback(
+    async (key: string, optimistic: T, action: () => Promise<void>) => {
+      const startRevision = useAppStore.getState().revision;
+      setMap((m) => new Map(m).set(key, { value: optimistic, settled: false }));
+      try {
+        await action();
+      } catch (e) {
+        onErrorRef.current?.(e);
+        release(key);
+        return;
+      }
+      if (useAppStore.getState().revision === startRevision) {
+        // Nothing was written (or nothing re-queries): release immediately.
+        release(key);
+        return;
+      }
+      setMap((m) => {
+        const cur = m.get(key);
+        if (!cur) return m;
+        return new Map(m).set(key, { ...cur, settled: true });
+      });
+      setTimeout(() => release(key), 3000);
+    },
+    [release],
+  );
+
+  return {
+    get: (key) => map.get(key)?.value,
+    has: (key) => map.has(key),
+    run,
+  };
 }
