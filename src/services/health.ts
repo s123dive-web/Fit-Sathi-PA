@@ -5,7 +5,8 @@ import { notifyChange } from '../store/appStore';
 
 export interface StepsState {
   steps: number | null;
-  status: HealthConnectStatus | 'permission_denied' | 'disabled';
+  /** `error` = Health Connect is there but the read failed (transient); distinct from `unsupported`. */
+  status: HealthConnectStatus | 'permission_denied' | 'disabled' | 'error';
 }
 
 /** Read today's steps if Health Connect is enabled, available and permitted. Never throws. */
@@ -24,7 +25,7 @@ export async function refreshSteps(): Promise<StepsState> {
     return { steps, status: 'available' };
   } catch (e) {
     console.warn('Health Connect read failed', e);
-    return { steps: null, status: 'unsupported' };
+    return { steps: null, status: 'error' };
   }
 }
 
