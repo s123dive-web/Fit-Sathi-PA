@@ -35,7 +35,7 @@ export function Food({ profile }: { profile: Profile }) {
   const outside = data.meals.filter((m) => m.outsideFastingWindow).length;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('food.title')}</h1>
         <div className="flex items-center gap-1">

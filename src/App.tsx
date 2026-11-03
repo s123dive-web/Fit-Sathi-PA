@@ -60,7 +60,10 @@ export default function App() {
     (async () => {
       const [p, s] = await Promise.all([profileRepo.get(), settingsRepo.get()]);
       setProfile(p);
-      setSettings(s);
+      setSettings((prev) => {
+        if (prev && !prev.onboarded && s.onboarded) setTab('today'); // fresh onboarding always lands on Today
+        return s;
+      });
       applyTheme(s.theme);
     })();
   }, [revision, ready]);

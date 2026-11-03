@@ -17,7 +17,7 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
       style={{ paddingBottom: 'var(--safe-bottom)' }}
       aria-label={t('nav.main')}
     >
-      <div className="mx-auto flex max-w-lg">
+      <div className="mx-auto flex max-w-lg md:max-w-3xl">
         {TABS.map((tb) => (
           <button
             key={tb.id}

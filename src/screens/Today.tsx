@@ -73,9 +73,9 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
   const firstName = profile.user.name.split(' ')[0];
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <header className="flex items-center justify-between">
-        <div>
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-4xl">
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <div className="text-xs text-slate-500">{formatDateLong(today)}</div>
           <h1 className="text-xl font-bold">
             {greeting()}, {firstName}
@@ -90,120 +90,127 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
         </div>
       </header>
 
-      {profile.fasting.enabled && <FastingCard fasting={profile.fasting} />}
+      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <div className="space-y-4">
+          {profile.fasting.enabled && <FastingCard fasting={profile.fasting} />}
 
-      <Card
-        title={t('today.habits')}
-        action={
-          <button className="min-h-[44px] px-2 text-xs font-medium text-brand-600" onClick={onOpenHabits}>
-            {t('common.manage')}
-          </button>
-        }
-      >
-        {data.habits.length === 0 ? (
-          <p className="text-sm text-slate-500">{t('today.noHabits')}</p>
-        ) : (
-          <>
-            <div className="mb-3 flex items-center gap-3">
-              <ProgressRing value={doneCount / denom} size={52} stroke={6}>
-                <span className="text-xs font-semibold">
-                  {doneCount}/{denom}
-                </span>
-              </ProgressRing>
-              <div className="text-sm text-slate-500">
-                {doneCount === denom
-                  ? t('today.allDone')
-                  : `${t('today.toGo', { n: denom - doneCount })}${skipCount ? ` · ${t('today.skipped', { n: skipCount })}` : ''}`}
-              </div>
-            </div>
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {data.habits.map((h) => {
-                const st = statusOf(h.id);
-                const streak = computeStreaks(
-                  h.schedule,
-                  data.allLogs.filter((l) => l.habitId === h.id),
-                  h.createdAt,
-                  today,
-                );
-                return (
-                  <li key={h.id} className="flex items-center gap-3 py-2" data-testid={`habit-${h.id}`}>
-                    <TickButton
-                      done={st === 'done'}
-                      color={h.color}
-                      label={`${h.name}: ${st === 'done' ? 'done' : 'mark done'}`}
-                      onClick={(anchor) => void setHabitStatus(h.id, today, st === 'done' ? null : 'done', { xp: h.xp, anchor })}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className={`truncate text-sm font-medium ${st === 'done' ? 'text-slate-400 line-through' : ''}`}>
-                        {h.emoji} {h.name}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {streak.current > 0 ? t(streak.unit === 'days' ? 'today.streakDays' : 'today.streakWeeks', { n: streak.current }) : t('today.noStreak')}
-                        {h.reminderEnabled && h.reminderTime ? ` · ⏰ ${formatHHMM12(h.reminderTime)}` : ''}
-                        {st === 'skip' ? ` · ${t('today.skippedRest')}` : st === 'miss' ? ` · ${t('today.missed')}` : ''}
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        className={`min-h-[44px] rounded-lg px-2.5 text-[11px] font-medium ${st === 'skip' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
-                        onClick={() => void setHabitStatus(h.id, today, st === 'skip' ? null : 'skip')}
-                        title={t('today.skipHint')}
-                      >
-                        {t('common.skip')}
-                      </button>
-                      <button
-                        className={`min-h-[44px] rounded-lg px-2.5 text-[11px] font-medium ${st === 'miss' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
-                        onClick={() => void setHabitStatus(h.id, today, st === 'miss' ? null : 'miss')}
-                        title={t('today.missHint')}
-                      >
-                        {t('common.miss')}
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-      </Card>
+          <Card
+            title={t('today.habits')}
+            action={
+              <button className="min-h-[44px] px-2 text-xs font-medium text-brand-600" onClick={onOpenHabits}>
+                {t('common.manage')}
+              </button>
+            }
+          >
+            {data.habits.length === 0 ? (
+              <p className="text-sm text-slate-500">{t('today.noHabits')}</p>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center gap-3">
+                  <ProgressRing value={doneCount / denom} size={52} stroke={6}>
+                    <span className="text-xs font-semibold">
+                      {doneCount}/{denom}
+                    </span>
+                  </ProgressRing>
+                  <div className="text-sm text-slate-500">
+                    {doneCount === denom
+                      ? t('today.allDone')
+                      : `${t('today.toGo', { n: denom - doneCount })}${skipCount ? ` · ${t('today.skipped', { n: skipCount })}` : ''}`}
+                  </div>
+                </div>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.habits.map((h) => {
+                    const st = statusOf(h.id);
+                    const streak = computeStreaks(
+                      h.schedule,
+                      data.allLogs.filter((l) => l.habitId === h.id),
+                      h.createdAt,
+                      today,
+                    );
+                    return (
+                      <li key={h.id} className="flex items-center gap-3 py-2" data-testid={`habit-${h.id}`}>
+                        <TickButton
+                          done={st === 'done'}
+                          color={h.color}
+                          label={`${h.name}: ${st === 'done' ? 'done' : 'mark done'}`}
+                          onClick={(anchor) => void setHabitStatus(h.id, today, st === 'done' ? null : 'done', { xp: h.xp, anchor })}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className={`line-clamp-2 text-sm font-medium leading-snug ${st === 'done' ? 'text-slate-400 line-through' : ''}`}>
+                            {h.emoji} {h.name}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {streak.current > 0
+                              ? t(streak.unit === 'days' ? 'today.streakDays' : 'today.streakWeeks', { n: streak.current })
+                              : t('today.noStreak')}
+                            {h.reminderEnabled && h.reminderTime ? ` · ⏰ ${formatHHMM12(h.reminderTime)}` : ''}
+                            {st === 'skip' ? ` · ${t('today.skippedRest')}` : st === 'miss' ? ` · ${t('today.missed')}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            className={`min-h-[44px] min-w-[44px] rounded-lg px-1.5 text-[11px] font-medium sm:px-2.5 ${st === 'skip' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
+                            onClick={() => void setHabitStatus(h.id, today, st === 'skip' ? null : 'skip')}
+                            title={t('today.skipHint')}
+                          >
+                            {t('common.skip')}
+                          </button>
+                          <button
+                            className={`min-h-[44px] min-w-[44px] rounded-lg px-1.5 text-[11px] font-medium sm:px-2.5 ${st === 'miss' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
+                            onClick={() => void setHabitStatus(h.id, today, st === 'miss' ? null : 'miss')}
+                            title={t('today.missHint')}
+                          >
+                            {t('common.miss')}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </Card>
+        </div>
+        <div className="space-y-4">
+          {profile.supplements.length > 0 && (
+            <Card title={t('today.supplements')}>
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {[...profile.supplements]
+                  .sort((a, b) => a.time.localeCompare(b.time))
+                  .map((s) => {
+                    const taken = data.supLogs.some((l) => l.supplementId === s.id);
+                    return (
+                      <li key={s.id} className="flex items-center gap-3 py-2" data-testid={`supplement-${s.id}`}>
+                        <TickButton
+                          done={taken}
+                          color="#8b5cf6"
+                          label={`${s.name} ${s.time}: ${taken ? 'taken' : 'mark taken'}`}
+                          onClick={(anchor) => void toggleSupplement(s.id, today, !taken, anchor)}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className={`line-clamp-2 text-sm font-medium leading-snug ${taken ? 'text-slate-400 line-through' : ''}`}>💊 {s.name}</div>
+                          <div className="text-[11px] text-slate-500">
+                            {formatHHMM12(s.time)}
+                            {s.dose ? ` · ${s.dose}` : ''}
+                            {s.alarm ? ' · ⏰' : ''}
+                            {data.supStreaks[s.id] ? ` · 🔥 ${data.supStreaks[s.id]}d` : ''}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </Card>
+          )}
 
-      {profile.supplements.length > 0 && (
-        <Card title={t('today.supplements')}>
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {[...profile.supplements]
-              .sort((a, b) => a.time.localeCompare(b.time))
-              .map((s) => {
-                const taken = data.supLogs.some((l) => l.supplementId === s.id);
-                return (
-                  <li key={s.id} className="flex items-center gap-3 py-2" data-testid={`supplement-${s.id}`}>
-                    <TickButton
-                      done={taken}
-                      color="#8b5cf6"
-                      label={`${s.name} ${s.time}: ${taken ? 'taken' : 'mark taken'}`}
-                      onClick={(anchor) => void toggleSupplement(s.id, today, !taken, anchor)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className={`truncate text-sm font-medium ${taken ? 'text-slate-400 line-through' : ''}`}>💊 {s.name}</div>
-                      <div className="text-[11px] text-slate-500">
-                        {formatHHMM12(s.time)}
-                        {s.dose ? ` · ${s.dose}` : ''}
-                        {s.alarm ? ' · ⏰' : ''}
-                        {data.supStreaks[s.id] ? ` · 🔥 ${data.supStreaks[s.id]}d` : ''}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-          </ul>
-        </Card>
-      )}
+          <div className="grid grid-cols-2 gap-4">
+            <WaterCard ml={data.water} target={profile.water.targetMl} today={today} />
+            <WeightCard latest={data.latestWeight} unit={settings.weightUnit} today={today} targetKg={profile.user.targetWeightKg} />
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <WaterCard ml={data.water} target={profile.water.targetMl} today={today} />
-        <WeightCard latest={data.latestWeight} unit={settings.weightUnit} today={today} targetKg={profile.user.targetWeightKg} />
+          <StepsCard steps={data.steps} settings={settings} />
+        </div>
       </div>
-
-      <StepsCard steps={data.steps} settings={settings} />
     </div>
   );
 }

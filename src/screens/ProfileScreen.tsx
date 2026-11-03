@@ -70,7 +70,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
 
   if (mode === 'edit') {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-bold">{t('profile.editTitle')}</h1>
           <button className="btn-ghost" onClick={() => setMode('view')}>
@@ -96,7 +96,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
 
   if (mode === 'import') {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-bold">{t('profile.importTitle')}</h1>
           <button className="btn-ghost" onClick={() => setMode('view')}>
@@ -129,7 +129,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
   const u = profile.user;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('profile.title')}</h1>
         <button

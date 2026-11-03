@@ -53,7 +53,21 @@ class SqliteDb implements Db {
     if (!this.isWeb) return;
     this.dirty = true;
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => void this.persist(), 400);
+    this.saveTimer = setTimeout(() => void this.persist(), 120);
+  }
+
+  /** Flush pending web writes when the page is hidden / unloaded. */
+  installFlushHooks(): void {
+    if (!this.isWeb || typeof window === 'undefined') return;
+    const flush = () => {
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      void this.persist();
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
   }
 
   async run(sql: string, params: unknown[] = []): Promise<void> {
@@ -155,6 +169,7 @@ async function openDb(): Promise<Db> {
   await conn.open();
   await migrate(conn);
   const db = new SqliteDb(conn, sqlite, isWeb);
+  db.installFlushHooks();
   await db.persist();
   return db;
 }

@@ -35,7 +35,7 @@ export function Progress({ profile, settings }: { profile: Profile; settings: Se
   const insights = computeInsights(data.summaries, profile.water.targetMl);
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('progress.title')}</h1>
         <div className="flex rounded-xl bg-slate-100 p-0.5 dark:bg-slate-800">

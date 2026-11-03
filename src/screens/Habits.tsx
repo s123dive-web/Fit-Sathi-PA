@@ -46,7 +46,7 @@ export function Habits({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('habits.title')}</h1>
         <button className="btn-primary" onClick={() => setEditing('new')}>
@@ -67,7 +67,7 @@ export function Habits({ profile }: { profile: Profile }) {
         />
       )}
 
-      <ul className="space-y-3">
+      <ul className="grid gap-3 md:grid-cols-2">
         {active.map((h) => {
           const logs = data.logs.filter((l) => l.habitId === h.id);
           const strength = computeStrength(h.schedule, logs, h.createdAt, today);
@@ -177,7 +177,7 @@ function HabitDetail({
   const dayStatus: HabitStatus | null = logs.find((l) => l.date === day)?.status ?? null;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center gap-3">
         <button className="btn-ghost w-12 p-0" onClick={onBack} aria-label={t('common.back')}>
           ←
