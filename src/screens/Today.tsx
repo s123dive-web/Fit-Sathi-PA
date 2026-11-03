@@ -90,7 +90,7 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+      <div className="fold-aware grid gap-4 md:grid-cols-2 md:gap-6 md:items-start">
         <div className="space-y-4">
           {profile.fasting.enabled && <FastingCard fasting={profile.fasting} />}
 

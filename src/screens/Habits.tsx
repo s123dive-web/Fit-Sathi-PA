@@ -67,7 +67,7 @@ export function Habits({ profile }: { profile: Profile }) {
         />
       )}
 
-      <ul className="grid gap-3 md:grid-cols-2">
+      <ul className="fold-aware grid gap-3 md:grid-cols-2 md:gap-6">
         {active.map((h) => {
           const logs = data.logs.filter((l) => l.habitId === h.id);
           const strength = computeStrength(h.schedule, logs, h.createdAt, today);
@@ -366,14 +366,14 @@ function HabitEditor({
           </div>
         </Field>
         <Field label={t('habits.colour')}>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
                 aria-label={c}
                 onClick={() => set({ color: c })}
-                className={`h-10 w-10 rounded-full ${draft.color === c ? 'ring-2 ring-offset-2 ring-slate-500 dark:ring-offset-slate-900' : ''}`}
+                className={`h-11 w-11 shrink-0 rounded-full ${draft.color === c ? 'ring-2 ring-offset-2 ring-slate-500 dark:ring-offset-slate-900' : ''}`}
                 style={{ background: c }}
               />
             ))}

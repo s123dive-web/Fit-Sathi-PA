@@ -71,3 +71,12 @@ body,
     opacity: 0.2;
   }
 }
+
+/* Foldables: when the viewport spans two segments (book posture), keep the two-column gap over the hinge. */
+@media (horizontal-viewport-segments: 2) {
+  .fold-aware {
+    grid-template-columns: env(viewport-segment-width 0 0) env(viewport-segment-width 1 0);
+    column-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0));
+    max-width: none;
+  }
+}

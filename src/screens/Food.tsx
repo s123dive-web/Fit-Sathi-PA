@@ -223,7 +223,7 @@ function FoodPicker({
                 {typicalFoods.map((f) => (
                   <button
                     key={f.id}
-                    className="chip min-h-[36px] shrink-0 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"
+                    className="chip min-h-[44px] shrink-0 bg-brand-50 px-3 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"
                     onClick={() => setSel(f)}
                   >
                     {f.name}
@@ -234,7 +234,11 @@ function FoodPicker({
           )}
           <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
             {categories.map((c) => (
-              <button key={c} className={`chip shrink-0 ${cat === c ? 'bg-brand-600 text-white' : 'bg-slate-100 dark:bg-slate-800'}`} onClick={() => setCat(c)}>
+              <button
+                key={c}
+                className={`chip min-h-[44px] min-w-[44px] shrink-0 px-3 ${cat === c ? 'bg-brand-600 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}
+                onClick={() => setCat(c)}
+              >
                 {c === 'all' ? t('food.all') : c}
               </button>
             ))}

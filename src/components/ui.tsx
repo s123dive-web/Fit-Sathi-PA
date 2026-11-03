@@ -124,20 +124,28 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
       <div
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:rounded-3xl"
-        style={{ paddingBottom: 'calc(1.25rem + var(--safe-bottom))' }}
+        className="flex max-h-[94vh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-xl dark:bg-slate-900 sm:max-h-[90vh] sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-label={title}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
           <h3 className="text-base font-semibold">{title}</h3>
           <button className="btn-ghost h-11 w-11 rounded-full p-0" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </div>
-        {children}
-        {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
+        {footer && (
+          <div
+            className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 pt-3 dark:border-slate-800 dark:bg-slate-900 sm:rounded-b-3xl"
+            style={{ paddingBottom: 'calc(0.75rem + var(--safe-bottom))' }}
+          >
+            {footer}
+          </div>
+        )}
+        {!footer && <div style={{ height: 'var(--safe-bottom)' }} />}
       </div>
     </div>
   );

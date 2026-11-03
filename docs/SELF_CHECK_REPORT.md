@@ -36,6 +36,15 @@ onboarding → Import profile JSON → paste sample → Validate → preview dif
 Today (9 tick targets: 6 habits + 3 supplements) → tick habit → +250 ml → Habits → Food → log "Jowar bhakri" →
 Progress → Profile (field assertions above) → reload → water 0.25 L persisted. Console errors: none.
 
+## Responsive / foldable audit (web build, headless Chromium)
+
+Viewports: 360×640, 412×915, 430×932, 800×1280, 1280×800, plus OnePlus Open postures — cover 412×917, inner 840×900,
+inner landscape 900×840, half-folded 840×440, split-screen 412×470, cover landscape 917×412. For every screen, the
+import preview, the weight dialog, the habit editor and the food picker: **no horizontal overflow, no interactive
+target under 44×44 px, no text under 10 px**. Live resize cover→inner→cover reflows Today between 1 and 2 columns
+without reload. Dialogs keep their primary action in a sticky footer so it is reachable at every height.
+Operations run (18 steps across all screens, encrypted backup/restore, erase) passes with 0 console errors.
+
 ## Verdict
 
 Web/TypeScript layer: complete and green. Android native layer: written and wired, **not compiled or
