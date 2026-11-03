@@ -31,3 +31,13 @@ export function t(key: string, params?: Record<string, string | number>): string
   if (!params) return raw;
   return raw.replace(/\{(\w+)\}/g, (_m, k: string) => (params[k] !== undefined ? String(params[k]) : `{${k}}`));
 }
+
+/**
+ * Plural-aware lookup: picks `${key}.one` for n === 1 and `${key}.other` otherwise (falls back to `key`).
+ * The count is available to the template as {n}.
+ */
+export function tn(key: string, n: number, params: Record<string, string | number> = {}): string {
+  const form = n === 1 ? 'one' : 'other';
+  const full = lookup(LOCALES[current], `${key}.${form}`) ?? lookup(LOCALES.en, `${key}.${form}`);
+  return t(full !== undefined ? `${key}.${form}` : key, { n, ...params });
+}

@@ -371,7 +371,30 @@
   },
   "errors": {
     "dbTitle": "Could not open the local database",
-    "updatedFromNotification": "Updated from notification"
+    "updatedFromNotification": "Updated from notification",
+    "loadFailed": "Couldn't load this screen",
+    "retry": "Try again",
+    "weeklyFailed": "Weekly summaries could not be updated"
+  },
+  "alarms": {
+    "supplementBody": "Time for {name}",
+    "supplementBodyDose": "Time for {name} — {dose}",
+    "workoutTitle": "Workout time 🏋️",
+    "workoutBody": "{start}–{end}",
+    "workoutBodyAt": "{start}–{end} · {location}",
+    "habitBody": "Tap Done, or Skip for a planned rest.",
+    "eveningTitle": "Evening check-in",
+    "eveningBody": "Tick off today's habits before the day ends.",
+    "waterTitle": "Water break 💧",
+    "waterBody": "Have a glass of water (+250 ml).",
+    "fastWarnTitle": "Eating window closes in {min} min",
+    "fastWarnBody": "Finish dinner before {time}.",
+    "fastCloseTitle": "Eating window closed",
+    "fastCloseBody": "Fasting until {time}. You've got this.",
+    "fastOpenTitle": "Fast complete 🎉",
+    "fastOpenBody": "Your eating window is open.",
+    "motivationTitle": "FitSaathi",
+    "pinnedTitle": "FitSaathi · {done}/{total} done"
   },
   "security": {
     "title": "Security",

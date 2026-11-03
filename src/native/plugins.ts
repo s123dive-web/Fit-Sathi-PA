@@ -23,6 +23,11 @@ export interface AlarmSpec {
   fullScreen?: boolean;
   /** One-shot on this local date (YYYY-MM-DD) instead of a recurring daily/weekday alarm. */
   date?: ISODate;
+  /**
+   * Exact delivery (AlarmManager.setExactAndAllowWhileIdle / setAlarmClock). Only supplements and the workout need it;
+   * every other reminder is scheduled inexactly (setWindow) to respect battery and Play's exact-alarm policy.
+   */
+  exact?: boolean;
 }
 
 export interface PinnedItem {
@@ -42,6 +47,13 @@ export interface FitAlarmsPlugin {
   updatePinned(options: { enabled: boolean; title: string; date: ISODate; items: PinnedItem[] }): Promise<void>;
   getPendingActions(): Promise<{ actions: PendingNativeAction[] }>;
   clearPendingActions(): Promise<void>;
+  /** Atomically returns and clears the stored actions (no window in which a new action can be lost). */
+  drainPendingActions(): Promise<{ actions: PendingNativeAction[] }>;
+  /** Android 14+: full-screen intents need a user grant for non-alarm-clock apps. Always true below API 34. */
+  canUseFullScreenIntent(): Promise<{ granted: boolean }>;
+  requestFullScreenIntentPermission(): Promise<void>;
+  /** Whether notifications can be posted at all (runtime permission on 13+, app-level toggle below). */
+  areNotificationsEnabled(): Promise<{ granted: boolean }>;
   addListener(eventName: 'action', listener: (action: PendingNativeAction) => void): Promise<PluginListenerHandle>;
 }
 

@@ -74,6 +74,28 @@ export function formatHHMM12(t: HHMM): string {
   return `${hh}:${pad2(m)} ${suffix}`;
 }
 
+let hour12Override: boolean | null = null;
+
+/** Whether the device prefers a 12-hour clock (Intl); overridable for tests / settings. */
+export function prefers12h(): boolean {
+  if (hour12Override !== null) return hour12Override;
+  try {
+    const opts = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions();
+    return opts.hour12 ?? opts.hourCycle === 'h12' || opts.hourCycle === 'h11';
+  } catch {
+    return false;
+  }
+}
+
+export function setHour12Override(v: boolean | null): void {
+  hour12Override = v;
+}
+
+/** The one user-facing time formatter: honours the device 12/24 h preference. */
+export function formatTime(t: HHMM): string {
+  return prefers12h() ? formatHHMM12(t) : t;
+}
+
 export function formatDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const h = Math.floor(s / 3600);

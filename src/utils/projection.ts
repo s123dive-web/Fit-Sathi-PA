@@ -1,6 +1,15 @@
 import type { ISODate, WeightEntry } from '../types';
 import { addDays, diffDays, eachDay } from './dates';
 
+export type GoalDirection = 'lose' | 'gain' | 'maintain';
+
+/** Which way the user wants the scale to move. Within ±0.5 kg counts as maintaining. */
+export function goalDirection(currentKg: number, targetKg: number): GoalDirection {
+  if (targetKg < currentKg - 0.5) return 'lose';
+  if (targetKg > currentKg + 0.5) return 'gain';
+  return 'maintain';
+}
+
 export interface TrendPoint {
   date: ISODate;
   kg: number | null;

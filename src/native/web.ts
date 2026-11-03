@@ -73,6 +73,20 @@ export class FitAlarmsWeb extends WebPlugin implements FitAlarmsPlugin {
       /* ignore */
     }
   }
+  async drainPendingActions() {
+    const r = await this.getPendingActions();
+    await this.clearPendingActions();
+    return r;
+  }
+  async canUseFullScreenIntent() {
+    return { granted: true };
+  }
+  async requestFullScreenIntentPermission() {
+    /* nothing to do on web */
+  }
+  async areNotificationsEnabled() {
+    return { granted: typeof Notification !== 'undefined' && Notification.permission === 'granted' };
+  }
 }
 
 export function nextOccurrence(a: AlarmSpec, from: Date): Date {
