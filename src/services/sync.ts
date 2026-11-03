@@ -4,7 +4,7 @@ import { addDays, dayNamesToWeekdays, hhmmToMinutes, parseHHMM, todayISO, weekSt
 import { fastingWarningTime } from '../utils/fasting';
 import { habitActiveOn } from '../utils/schedule';
 import { completionStats, computeStreaks } from '../utils/habitStrength';
-import { projectToTarget } from '../utils/projection';
+import { goalDirection, projectToTarget } from '../utils/projection';
 import { pickQuotes, QUOTES, renderQuote, type QuoteContext } from '../utils/quotes';
 import { FitAlarms, FitWidget, type AlarmSpec, type PinnedItem, type WidgetItem } from '../native/plugins';
 import { notifyChange, toast } from '../store/appStore';
@@ -185,11 +185,12 @@ export async function quoteContext(profile: Profile, habits: Habit[], today: ISO
       streak = Math.max(streak, s.current);
       bestStreak = Math.max(bestStreak, s.best);
     }
-    const st = completionStats(h.schedule, hl, h.createdAt > ws ? h.createdAt : ws, today);
+    const st = completionStats(h.schedule, hl, h.createdAt > ws ? h.createdAt : ws, today, today);
     scheduled += Math.max(0, st.scheduled - st.skipped);
     done += st.done;
   }
-  const proj = projectToTarget(await weightRepo.all(), profile.user.targetWeightKg, today);
+  const goal = goalDirection(profile.user.currentWeightKg, profile.user.targetWeightKg);
+  const proj = projectToTarget(await weightRepo.all(), profile.user.targetWeightKg, today, { goal });
   const latest = proj.latestMa7 ?? profile.user.currentWeightKg;
   return {
     name: profile.user.name.split(' ')[0],

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "placeholders": ["name", "streak", "daysToTarget", "kgLeft", "bestStreak", "weekCompletion", "targetKg", "eatStart"],
+  "placeholders": ["name", "streak", "daysToTarget", "kgLeft", "bestStreak", "weekCompletion", "targetKg", "eatStart", "eatEnd", "wake"],
   "quotes": [
     {
       "id": "g01",
@@ -155,7 +155,7 @@
     {
       "id": "f01",
       "kind": "future_you",
-      "text": "{name}, {daysToTarget} days to {targetKg} kg. Future you at the cricket ground is lighter and faster."
+      "text": "{name}, {daysToTarget} days to {targetKg} kg. Future you is lighter and faster at whatever you love to play."
     },
     {
       "id": "f02",
@@ -185,7 +185,7 @@
     {
       "id": "f07",
       "kind": "future_you",
-      "text": "Future {name} wakes up at 05:30 without an alarm. Today's wake-up builds that."
+      "text": "Future {name} wakes up at {wake} without an alarm. Today's wake-up builds that."
     },
     {
       "id": "f08",
@@ -220,7 +220,7 @@
     {
       "id": "f14",
       "kind": "future_you",
-      "text": "Dinner before 19:00 tonight, {name}. Future you sleeps better and wakes lighter."
+      "text": "Dinner before {eatEnd} tonight, {name}. Future you sleeps better and wakes lighter."
     },
     {
       "id": "f15",
@@ -250,7 +250,7 @@
     {
       "id": "f20",
       "kind": "future_you",
-      "text": "Future {name} runs between the wickets without losing breath. Today's walk gets you there."
+      "text": "Future {name} takes the stairs two at a time without losing breath. Today's walk gets you there."
     },
     {
       "id": "f21",
@@ -305,7 +305,7 @@
     {
       "id": "f31",
       "kind": "future_you",
-      "text": "{name}, {kgLeft} kg lighter means a lighter step at the ground this weekend."
+      "text": "{name}, {kgLeft} kg lighter means a lighter step wherever this weekend takes you."
     },
     {
       "id": "f32",

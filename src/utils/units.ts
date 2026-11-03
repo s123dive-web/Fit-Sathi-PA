@@ -41,7 +41,9 @@ export function parseWeightInput(value: number, unit: WeightUnit): number {
   return unit === 'lb' ? lbToKg(value) : value;
 }
 
-export function bmi(kg: number, cm: number): number {
+/** Body-mass index, or null when the inputs cannot give one (height or weight missing / non-positive). */
+export function bmi(kg: number, cm: number): number | null {
+  if (!Number.isFinite(kg) || !Number.isFinite(cm) || kg <= 0 || cm <= 0) return null;
   const m = cm / 100;
   return Math.round((kg / (m * m)) * 10) / 10;
 }

@@ -1,5 +1,5 @@
 import type { HabitLog, HabitSchedule, HabitStatus, ISODate } from '../types';
-import { addDays, eachDay, isoWeekday, weekStart } from './dates';
+import { addDays, diffDays, eachDay, isoWeekday, todayISO, weekStart } from './dates';
 import { isScheduledOn, weeklyFrequency } from './schedule';
 
 /**
@@ -19,6 +19,16 @@ export function multiplier(schedule: HabitSchedule): number {
   return Math.pow(0.5, Math.sqrt(freqPerDay) / 13);
 }
 
+/**
+ * Weekly target for a week of which only `daysInWeek` of the 7 days fall inside the window
+ * (habit created mid-week, stats window starting mid-week): target × days / 7, rounded up, min 1.
+ */
+export function proratedTarget(target: number, daysInWeek: number): number {
+  if (daysInWeek <= 0) return 0;
+  if (daysInWeek >= 7) return target;
+  return Math.max(1, Math.ceil((target * daysInWeek) / 7));
+}
+
 export interface StrengthResult {
   score: number; // 0..1
   percent: number; // 0..100
@@ -35,6 +45,9 @@ export function computeStrength(schedule: HabitSchedule, logs: HabitLog[], creat
 
   if (schedule.type === 'times_per_week') {
     const target = weeklyFrequency(schedule);
+    // The first (partial) week only expects its share of the target: a habit created on a
+    // Friday must not decay for the Mon–Thu on which it did not exist yet.
+    let weekTarget = proratedTarget(target, 8 - isoWeekday(createdAt));
     let weekDone = 0;
     let weekSkips = 0;
     for (const d of days) {
@@ -49,10 +62,11 @@ export function computeStrength(schedule: HabitSchedule, logs: HabitLog[], creat
       const isLastDay = d === today;
       if (isWeekEnd && !isLastDay) {
         // Week closed: decay for each missing completion (skips count as planned rest).
-        const missing = Math.max(0, target - weekDone - weekSkips);
+        const missing = Math.max(0, weekTarget - weekDone - weekSkips);
         for (let i = 0; i < missing; i += 1) score *= m;
         weekDone = 0;
         weekSkips = 0;
+        weekTarget = target;
       }
     }
     return { score, percent: Math.round(score * 100) };
@@ -65,8 +79,8 @@ export function computeStrength(schedule: HabitSchedule, logs: HabitLog[], creat
       score = score * m + (1 - m);
     } else if (st === 'skip') {
       // planned rest, no change
-    } else if (d < today) {
-      // missed (explicit or implicit)
+    } else if (st === 'miss' || d < today) {
+      // missed: explicit (today included) or implicit (unlogged past day)
       score *= m;
     }
     // today without a log: no change yet
@@ -82,7 +96,8 @@ export interface StreakResult {
 
 /**
  * Streaks. Skips never break a streak (and never extend it).
- * - daily / weekdays: consecutive scheduled days marked done.
+ * - daily / weekdays: consecutive scheduled days marked done. An unlogged today is pending and
+ *   does not break the streak; an explicit "miss" on today does.
  * - times_per_week: consecutive weeks meeting the target (current week counts once met).
  */
 export function computeStreaks(schedule: HabitSchedule, logs: HabitLog[], createdAt: ISODate, today: ISODate): StreakResult {
@@ -135,7 +150,7 @@ export function computeStreaks(schedule: HabitSchedule, logs: HabitLog[], create
       best = Math.max(best, run);
     } else if (st === 'skip') {
       // keep run
-    } else if (d < today) {
+    } else if (st === 'miss' || d < today) {
       run = 0;
     }
   }
@@ -150,6 +165,8 @@ export function computeStreaks(schedule: HabitSchedule, logs: HabitLog[], create
       if (st === 'done') current += 1;
       else if (st === 'skip') {
         // continue
+      } else if (st === 'miss') {
+        break; // an explicit miss ends the streak, even when it is today's
       } else if (d === today) {
         // today not yet logged; don't break
       } else break;
@@ -167,41 +184,58 @@ export interface CompletionStats {
   percent: number; // done / (scheduled - skipped)
 }
 
-export function completionStats(schedule: HabitSchedule, logs: HabitLog[], from: ISODate, to: ISODate): CompletionStats {
+/**
+ * Completion statistics over [from, to].
+ * - Days after `today` are not scheduled yet and never count; an unlogged `today` is pending and
+ *   does not count either (a logged today does).
+ * - times_per_week: a week that only partly lies inside the window is charged a prorated target;
+ *   a week still in progress (ends on or after `today`) is never charged misses.
+ */
+export function completionStats(schedule: HabitSchedule, logs: HabitLog[], from: ISODate, to: ISODate, today: ISODate = todayISO()): CompletionStats {
   const byDate = new Map<ISODate, HabitStatus>();
   for (const l of logs) byDate.set(l.date, l.status);
   let scheduled = 0;
   let done = 0;
   let skipped = 0;
   let missed = 0;
-  if (schedule.type === 'times_per_week') {
-    const target = weeklyFrequency(schedule);
-    let ws = weekStart(from);
-    const lastWs = weekStart(to);
-    while (ws <= lastWs) {
-      let wDone = 0;
-      let wSkip = 0;
-      for (let i = 0; i < 7; i += 1) {
-        const d = addDays(ws, i);
-        if (d < from || d > to) continue;
-        const st = byDate.get(d);
-        if (st === 'done') wDone += 1;
-        if (st === 'skip') wSkip += 1;
+  const last = to < today ? to : today;
+  if (last >= from) {
+    if (schedule.type === 'times_per_week') {
+      const target = weeklyFrequency(schedule);
+      let ws = weekStart(from);
+      const lastWs = weekStart(last);
+      while (ws <= lastWs) {
+        const we = addDays(ws, 6);
+        const first = ws < from ? from : ws;
+        const wTarget = proratedTarget(target, diffDays(first, we) + 1);
+        let wDone = 0;
+        let wSkip = 0;
+        for (let i = 0; i < 7; i += 1) {
+          const d = addDays(ws, i);
+          if (d < from || d > last) continue;
+          const st = byDate.get(d);
+          if (st === 'done') wDone += 1;
+          if (st === 'skip') wSkip += 1;
+        }
+        const inProgress = we >= today;
+        const wScheduled = inProgress ? Math.min(wTarget, wDone + wSkip) : wTarget;
+        const wDoneCounted = Math.min(wScheduled, wDone);
+        scheduled += wScheduled;
+        done += wDoneCounted;
+        skipped += Math.min(wScheduled - wDoneCounted, wSkip);
+        ws = addDays(ws, 7);
       }
-      scheduled += target;
-      done += Math.min(target, wDone);
-      skipped += Math.min(target - Math.min(target, wDone), wSkip);
-      ws = addDays(ws, 7);
-    }
-    missed = Math.max(0, scheduled - done - skipped);
-  } else {
-    for (const d of eachDay(from, to)) {
-      if (!isScheduledOn(schedule, d)) continue;
-      scheduled += 1;
-      const st = byDate.get(d);
-      if (st === 'done') done += 1;
-      else if (st === 'skip') skipped += 1;
-      else if (d < to) missed += 1;
+      missed = Math.max(0, scheduled - done - skipped);
+    } else {
+      for (const d of eachDay(from, last)) {
+        if (!isScheduledOn(schedule, d)) continue;
+        const st = byDate.get(d);
+        if (st === undefined && d === today) continue; // pending, not yet due
+        scheduled += 1;
+        if (st === 'done') done += 1;
+        else if (st === 'skip') skipped += 1;
+        else missed += 1;
+      }
     }
   }
   const denom = Math.max(0, scheduled - skipped);

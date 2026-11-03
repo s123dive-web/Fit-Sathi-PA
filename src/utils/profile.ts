@@ -39,10 +39,35 @@ export function supplementId(s: { name: string; time: string }): string {
   return `sup_${slug(s.name)}_${s.time.replace(':', '')}`;
 }
 
+/**
+ * Ids for a whole supplement list. Names that differ only in punctuation ("Omega 3" vs "omega-3")
+ * share a slug, so a repeated generated id gets an index suffix instead of colliding. Explicit ids
+ * are kept as given (validateProfile reports duplicates among them).
+ */
+export function supplementIds(list: { id?: string; name: string; time: string }[]): string[] {
+  const seen = new Map<string, number>();
+  return list.map((s) => {
+    if (s.id !== undefined) return s.id;
+    const base = supplementId(s);
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return n === 1 ? base : `${base}_${n}`;
+  });
+}
+
+/** Case/whitespace-insensitive key used to detect the same supplement listed twice at one time. */
+function supplementKey(s: { id?: string; name: string; time: string }): string {
+  return s.id ?? `${s.name.trim().toLowerCase().replace(/\s+/g, ' ')}@${s.time}`;
+}
+
+/** Largest profile JSON text accepted by parseProfileJson (characters, ≈ bytes for ASCII). */
+export const MAX_PROFILE_JSON_CHARS = 256 * 1024;
+
 /** Fill in generated ids and defaults; returns a deep copy. */
 export function normalizeProfile(input: Profile): Profile {
   const p: Profile = JSON.parse(JSON.stringify(input));
-  p.supplements = p.supplements.map((s) => ({ ...s, id: s.id ?? supplementId(s) }));
+  const supIds = supplementIds(p.supplements);
+  p.supplements = p.supplements.map((s, i) => ({ ...s, id: supIds[i] }));
   if (p.user.city === '') delete p.user.city;
   if (p.user.cuisine === '') delete p.user.cuisine;
   if (p.workout.location === '') delete p.workout.location;
@@ -66,11 +91,11 @@ export function validateProfile(input: unknown): ValidationResult {
   if (p.sleep.bedtime === p.sleep.wake) errors.push('sleep: bedtime and wake cannot be the same time');
   if (p.workout.enabled && hhmmToMinutes(p.workout.start) === hhmmToMinutes(p.workout.end)) errors.push('workout: start and end cannot be the same time');
   if (p.workout.enabled && p.workout.days.length === 0) errors.push('workout: at least one day is required when enabled');
-  const ids = new Set<string>();
+  const keys = new Set<string>();
   for (const s of p.supplements) {
-    const id = s.id ?? supplementId(s);
-    if (ids.has(id)) errors.push(`supplements: duplicate "${s.name}" at ${s.time}`);
-    ids.add(id);
+    const key = supplementKey(s);
+    if (keys.has(key)) errors.push(`supplements: duplicate "${s.name}" at ${s.time}`);
+    keys.add(key);
   }
   for (const h of p.habits) {
     if (h.schedule === 'weekdays' && !h.days?.length) errors.push(`habits: "${h.name}" uses weekdays but has no days`);
@@ -80,6 +105,9 @@ export function validateProfile(input: unknown): ValidationResult {
 }
 
 export function parseProfileJson(text: string): ValidationResult {
+  if (text.length > MAX_PROFILE_JSON_CHARS) {
+    return { ok: false, errors: [`Profile file is too large (${Math.round(text.length / 1024)} KB; the limit is ${MAX_PROFILE_JSON_CHARS / 1024} KB)`] };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -110,16 +138,23 @@ export function diffProfiles(before: Profile | null, after: Profile): DiffEntry[
     if (obj === null || obj === undefined) return;
     if (Array.isArray(obj)) {
       if (prefix === 'supplements') {
-        for (const s of obj as Supplement[])
-          into.set(`supplements[${s.id ?? supplementId(s)}]`, `${s.name} · ${s.dose} · ${s.time}${s.alarm ? ' · alarm' : ''}`);
+        const list = obj as Supplement[];
+        const ids = supplementIds(list);
+        list.forEach((s, i) => into.set(`supplements[${ids[i]}]`, `${s.name} · ${s.dose} · ${s.time}${s.alarm ? ' · alarm' : ''}`));
         return;
       }
       if (prefix === 'habits') {
-        for (const h of obj as ProfileHabit[])
+        // Keyed by slug, with an index suffix when two habits share one, so neither entry is swallowed.
+        const seen = new Map<string, number>();
+        for (const h of obj as ProfileHabit[]) {
+          const base = slug(h.name);
+          const n = (seen.get(base) ?? 0) + 1;
+          seen.set(base, n);
           into.set(
-            `habits[${slug(h.name)}]`,
+            `habits[${n === 1 ? base : `${base}#${n}`}]`,
             `${h.name} · ${h.schedule}${h.targetPerWeek ? ` ${h.targetPerWeek}×/wk` : ''}${h.days ? ` ${h.days.join(',')}` : ''}`,
           );
+        }
         return;
       }
       into.set(prefix, obj);

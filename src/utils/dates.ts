@@ -48,7 +48,19 @@ export function eachDay(from: ISODate, to: ISODate): ISODate[] {
   return eachDayOfInterval({ start: parseISODate(from), end: parseISODate(to) }).map(toISODate);
 }
 
+const HHMM_RE = /^(\d{1,2}):(\d{2})$/;
+
+/** True for a well-formed 24-hour "HH:MM" (a single-digit hour is tolerated). */
+export function isValidHHMM(t: unknown): t is HHMM {
+  if (typeof t !== 'string') return false;
+  const m = HHMM_RE.exec(t);
+  if (!m) return false;
+  return Number(m[1]) < 24 && Number(m[2]) < 60;
+}
+
+/** Parse "HH:MM". Malformed input (screens call this on raw user input) yields 00:00 rather than NaN. */
 export function parseHHMM(t: HHMM): { h: number; m: number } {
+  if (!isValidHHMM(t)) return { h: 0, m: 0 };
   const [h, m] = t.split(':').map(Number);
   return { h, m };
 }

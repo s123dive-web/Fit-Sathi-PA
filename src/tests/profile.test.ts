@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { diffProfiles, habitsFromProfile, habitsToProfile, parseProfileJson, supplementId, validateProfile } from '../utils/profile';
+import {
+  diffProfiles,
+  habitsFromProfile,
+  habitsToProfile,
+  MAX_PROFILE_JSON_CHARS,
+  parseProfileJson,
+  supplementId,
+  supplementIds,
+  validateProfile,
+} from '../utils/profile';
 import type { Profile } from '../types';
 
 const sample = JSON.parse(readFileSync(new URL('../../sample/suresh_profile.json', import.meta.url), 'utf8')) as Profile;
@@ -35,6 +44,25 @@ describe('profile schema', () => {
   it('rejects duplicate supplements (same name + time)', () => {
     const r = validateProfile({ ...sample, supplements: [sample.supplements[0], sample.supplements[0]] });
     expect(r.ok).toBe(false);
+    const caseOnly = validateProfile({ ...sample, supplements: [sample.supplements[0], { ...sample.supplements[0], name: '  sea BUCKTHORN   juice ' }] });
+    expect(caseOnly.ok).toBe(false);
+  });
+
+  it('gives distinct ids to supplements whose names differ only in punctuation', () => {
+    const sups = [
+      { name: 'Omega 3', dose: '1', time: '08:00', alarm: false },
+      { name: 'omega-3', dose: '2', time: '08:00', alarm: false },
+    ];
+    expect(supplementIds(sups)).toEqual(['sup_omega_3_0800', 'sup_omega_3_0800_2']);
+    const r = validateProfile({ ...sample, supplements: sups });
+    expect(r.ok).toBe(true);
+    expect(new Set(r.profile!.supplements.map((s) => s.id)).size).toBe(2);
+    // ids are stable across re-imports of the same file
+    expect(validateProfile({ ...sample, supplements: sups }).profile!.supplements.map((s) => s.id)).toEqual(r.profile!.supplements.map((s) => s.id));
+    // explicit ids are left untouched
+    expect(supplementIds([{ id: 'custom', name: 'Omega 3', time: '08:00' }, sups[0]])).toEqual(['custom', 'sup_omega_3_0800']);
+    const d = diffProfiles(null, r.profile!);
+    expect(d.filter((x) => x.path.startsWith('supplements['))).toHaveLength(2);
   });
 
   it('rejects weekday habits without days', () => {
@@ -46,12 +74,35 @@ describe('profile schema', () => {
     expect(parseProfileJson('{ nope').ok).toBe(false);
   });
 
+  it('rejects profile text larger than 256 KB with a clear error', () => {
+    const huge = `{${' '.repeat(MAX_PROFILE_JSON_CHARS + 1)}}`;
+    const r = parseProfileJson(huge);
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]).toMatch(/too large/);
+    expect(r.errors[0]).toContain('256 KB');
+    expect(parseProfileJson(JSON.stringify(sample)).ok).toBe(true);
+  });
+
   it('diffs changed, added and removed values', () => {
     const next: Profile = { ...sample, user: { ...sample.user, targetWeightKg: 68, cuisine: undefined }, supplements: sample.supplements.slice(1) };
     const d = diffProfiles(sample, next);
     expect(d.find((x) => x.path === 'user.targetWeightKg')?.kind).toBe('changed');
     expect(d.find((x) => x.path.startsWith('supplements[sup_sea_buckthorn_juice_0640]'))?.kind).toBe('removed');
     expect(d.find((x) => x.path === 'user.cuisine')?.kind).toBe('removed');
+  });
+
+  it('diffs habits that share a slug as separate entries', () => {
+    const next: Profile = {
+      ...sample,
+      habits: [
+        { name: 'Walk', schedule: 'daily' },
+        { name: 'walk!', schedule: 'weekly', targetPerWeek: 2 },
+      ],
+    };
+    const d = diffProfiles({ ...sample, habits: [] }, next).filter((x) => x.path.startsWith('habits['));
+    expect(d.map((x) => x.path).sort()).toEqual(['habits[walk#2]', 'habits[walk]']);
+    expect(d.every((x) => x.kind === 'added')).toBe(true);
+    expect(d.find((x) => x.path === 'habits[walk#2]')?.after).toContain('2×/wk');
   });
 
   it('converts profile habits to app habits and back', () => {
@@ -65,5 +116,11 @@ describe('profile schema', () => {
     expect(cricket?.schedule).toEqual({ type: 'times_per_week', timesPerWeek: 1 });
     const round = habitsToProfile(habits);
     expect(round.map((h) => [h.name, h.schedule, h.targetPerWeek])).toEqual(sample.habits.map((h) => [h.name, h.schedule, h.targetPerWeek]));
+  });
+
+  it('caps motivational times at 2 per day (the no-repeat guarantee of the quote pool)', () => {
+    const r = validateProfile({ ...sample, notifications: { ...sample.notifications, motivational: { enabled: true, times: ['08:00', '14:00', '20:00'] } } });
+    expect(r.ok).toBe(false);
+    expect(r.errors.some((e) => e.includes('motivational.times'))).toBe(true);
   });
 });
