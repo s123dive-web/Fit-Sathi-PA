@@ -81,7 +81,7 @@ export function prefers12h(): boolean {
   if (hour12Override !== null) return hour12Override;
   try {
     const opts = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions();
-    return opts.hour12 ?? opts.hourCycle === 'h12' || opts.hourCycle === 'h11';
+    return opts.hour12 ?? (opts.hourCycle === 'h12' || opts.hourCycle === 'h11');
   } catch {
     return false;
   }
