@@ -195,5 +195,5 @@ Every item above was addressed on branch `ccr-85d465e0-jpnnll`; verification: `n
 | UX 1–14                                            | Fixed — see the screens commit: overflow menu for Skip/Miss, water/weight above the fold, water habit auto-tick, one time format, labelled fasting ratio, human import labels, JSON tools under Advanced, in-app confirm dialogs (archive + undo, hold-to-confirm, typed word), real Modal a11y, pinch zoom, reduced motion, plural strings, dark charts | `src/screens/**`, `src/components/**`, `src/i18n/en.json`                       |
 | Engineering                                        | Debounced `syncNative`, no per-slot dynamic import, bounded log queries, thumbnail LRU, `db.transaction()`, fail-closed PIN with monotonic + clock-rollback guard, 256 KB profile cap, schema list caps, Progress lazy chunk (main bundle 905 → 546 kB)                                                                                                  | various                                                                         |
 
-**Still open (needs a machine with the Android SDK):** compile the Kotlin, then run the device checks in
-`docs/ALARM_TEST.md` rows 1–13.
+**Compiled:** the Android project builds in GitHub Actions (`Build APK` workflow; debug APK published as a
+`build-N` release on every push to `main`). **Still open:** the on-device checks in `docs/ALARM_TEST.md` rows 1–13.

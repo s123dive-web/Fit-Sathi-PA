@@ -21,8 +21,10 @@ Health Connect client is pinned to `1.1.0-alpha07` in `android/variables.gradle`
 
 **Update (review fixes):** the native layer was revised against the findings in `docs/REVIEW.md` §3 (ordered-broadcast
 single delivery of notification actions, Android 14 full-screen-intent grant, exact-alarm permission-state receiver,
-`onNewIntent` on the alarm activity, crash-proof stored specs, inexact reminders). It still has **not** been compiled
-here. A compile with a real Android SDK is the first thing to do on a dev machine.
+`onNewIntent` on the alarm activity, crash-proof stored specs, inexact reminders). **Update (CI):** the Android project now compiles in GitHub Actions
+(`.github/workflows/build.yml`, `assembleDebug`, 0 Kotlin warnings in app sources); every push to `main` publishes
+`app-debug.apk` as a workflow artifact and as a `build-N` GitHub release. Device checks in `docs/ALARM_TEST.md` still
+need a phone or emulator.
 
 ## 2. SQLCipher not used; backups are AES-encrypted on export — accepted alternative
 

@@ -49,8 +49,8 @@ Operations run (18 steps across all screens, encrypted backup/restore, erase) pa
 
 `docs/REVIEW.md` lists the findings of a critical review and, in its "Resolution" section, what was changed. The
 web layer was re-verified after the fixes: lint/typecheck/130 tests green, production build (main chunk 546 kB,
-Progress lazy-loaded), headless Chromium walkthrough of every tab with 0 console errors. The Android layer was
-revised but remains uncompiled here.
+Progress lazy-loaded), headless Chromium walkthrough of every tab with 0 console errors. The Android layer compiles in
+GitHub Actions (`Build APK` workflow, first green run: build 4, APK 23 MB); device checks remain NOT RUN.
 
 ## Verdict
 

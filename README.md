@@ -186,9 +186,10 @@ Testing Library component tests for Today, Habits, Food, Onboarding and the lock
 The web build was also driven end-to-end in headless Chromium (onboarding import → Today ticks →
 Habits → Food log → Progress → Profile → reload persistence) with no console errors.
 
-The Android project (Kotlin plugins, widget, receivers, full-screen alarm) must be compiled with the Android
-SDK in Android Studio; it is not compiled by `npm run build` and was not compiled in the environment that
-produced this repo (see `docs/DEVIATIONS.md`). Device checks are scripted in `docs/ALARM_TEST.md`.
+The Android project (Kotlin plugins, widget, receivers, full-screen alarm) is built by GitHub Actions:
+`.github/workflows/build.yml` runs the web build, `cap sync`, and `./gradlew assembleDebug` on every push to
+`main` (or manually via _Run workflow_), uploads `app-debug.apk` as an artifact and attaches it to a `build-N`
+release under **Releases**. No local SDK is needed. Device checks are scripted in `docs/ALARM_TEST.md`.
 
 ---
 
