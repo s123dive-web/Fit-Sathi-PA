@@ -1,5 +1,6 @@
 package com.fitsaathi.app.plugins
 
+import android.view.WindowManager
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -56,6 +57,32 @@ class FitBiometricPlugin : Plugin() {
             p
         }
         orphan?.reject("destroyed", "destroyed")
+    }
+
+    /**
+     * FLAG_SECURE on the main window: blocks screenshots / screen recording and blanks the app in Recents while
+     * the PIN / biometric lock is active (`enabled` true). Cleared again with `enabled` false.
+     */
+    @PluginMethod
+    fun setSecureScreen(call: PluginCall) {
+        val enabled = call.getBoolean("enabled", false) ?: false
+        val act = activity
+        if (act == null) {
+            call.reject("no_activity")
+            return
+        }
+        act.runOnUiThread {
+            try {
+                if (enabled) {
+                    act.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                } else {
+                    act.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject("Could not update FLAG_SECURE: ${e.message}", e)
+            }
+        }
     }
 
     @PluginMethod

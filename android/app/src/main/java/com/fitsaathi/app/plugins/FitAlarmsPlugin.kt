@@ -128,6 +128,12 @@ class FitAlarmsPlugin : Plugin() {
 
     @PluginMethod
     fun requestFullScreenIntentPermission(call: PluginCall) {
+        // USE_FULL_SCREEN_INTENT is not declared in the manifest, so there is nothing to grant: resolve at once
+        // without opening Settings (JS re-queries canUseFullScreenIntent and keeps the heads-up path).
+        if (!Notifications.isFullScreenIntentDeclared(context)) {
+            call.resolve()
+            return
+        }
         val i = Notifications.fullScreenIntentSettingsIntent(context)
         if (i == null || Notifications.canUseFullScreenIntent(context)) {
             call.resolve()

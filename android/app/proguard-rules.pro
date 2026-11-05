@@ -5,17 +5,26 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Readable stack traces from Play Console crash reports.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor plugins are discovered and invoked through annotations / reflection.
+-keepattributes *Annotation*
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Our own plugins: @ActivityCallback / @PermissionCallback methods are private and invoked by reflection,
+# receivers / activities are referenced from the manifest, and the widget provider through RemoteViews.
+-keep class com.fitsaathi.app.** { *; }
+
+# @capacitor-community/sqlite ships no consumer ProGuard rules; SQLCipher binds its JNI symbols by class/method name.
+-keep class net.zetetic.** { *; }
+-keep class com.getcapacitor.community.database.sqlite.** { *; }
+
+# Health Connect client (androidx.health.connect:connect-client 1.1.0) marshals records by class name.
+-keep class androidx.health.connect.client.** { *; }
+-dontwarn androidx.health.connect.**
+
+# Compile-time-only annotation libraries pulled in transitively (Tink via security-crypto, Room, etc.).
+-dontwarn javax.annotation.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn org.checkerframework.**

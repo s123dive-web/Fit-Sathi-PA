@@ -5,6 +5,7 @@ import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.fitsaathi.app.widget.HabitWidgetProvider
@@ -14,20 +15,41 @@ private const val TAG = "FitAlarms"
 
 /** Fires when an alarm goes off: show the notification and re-arm for the next occurrence. */
 class AlarmReceiver : BroadcastReceiver() {
+    companion object {
+        /** Upper bound for the partial wake lock held while the alarm is posted and re-armed (normally a few ms). */
+        private const val WAKE_LOCK_TIMEOUT_MS = 10_000L
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
         val snooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_SNOOZE, false)
-        val spec = AlarmStore.find(context, id)
-        if (spec == null) {
-            Log.w(TAG, "Alarm $id fired but is no longer defined")
-            return
+        // RTC_WAKEUP alarms wake the device, but a dozing CPU may be released again as soon as onReceive returns.
+        // A short, timed partial wake lock (WAKE_LOCK permission) keeps it up until the notification is posted.
+        val wakeLock = try {
+            (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "fitsaathi:alarm")
+                ?.also { it.acquire(WAKE_LOCK_TIMEOUT_MS) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not acquire alarm wake lock", e)
+            null
         }
         try {
-            Notifications.showAlarm(context, spec)
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not show alarm $id", e)
+            val spec = AlarmStore.find(context, id)
+            if (spec == null) {
+                Log.w(TAG, "Alarm $id fired but is no longer defined")
+                return
+            }
+            try {
+                Notifications.showAlarm(context, spec)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not show alarm $id", e)
+            }
+            if (!snooze && !spec.isOneShot) AlarmScheduler.schedule(context, spec) // never throws
+        } finally {
+            try {
+                if (wakeLock != null && wakeLock.isHeld) wakeLock.release()
+            } catch (_: Exception) {}
         }
-        if (!snooze && !spec.isOneShot) AlarmScheduler.schedule(context, spec) // never throws
     }
 }
 

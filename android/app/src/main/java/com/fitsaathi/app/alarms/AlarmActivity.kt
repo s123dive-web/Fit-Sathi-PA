@@ -20,17 +20,23 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.fitsaathi.app.R
 
 /**
- * Full-screen alarm UI shown over the lock screen for supplement / workout alarms.
- * Plays the alarm ringtone itself (looping, alarm stream, 60 s cap) and vibrates; the notification that
- * launched it sits on a silent channel so the sound is never doubled.
+ * Alarm ring screen for supplement / workout alarms, shown over the lock screen. Reached by tapping the
+ * heads-up alarm notification (USE_FULL_SCREEN_INTENT is not declared, so it is never auto-launched).
+ * Plays the alarm ringtone itself (looping, alarm stream, 60 s cap) and vibrates; on arrival it re-posts the
+ * notification on a silent channel so the sound is never doubled.
  */
 class AlarmActivity : Activity() {
 
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+    /** Alarm currently bound to the screen (null until bind() succeeds). */
+    private var boundAlarmId: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val stopRunnable = Runnable { stopSound() }
 
@@ -62,13 +68,37 @@ class AlarmActivity : Activity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_alarm)
+        setupEdgeToEdge()
         bind(intent)
     }
 
-    /** A second alarm while this one is showing (singleInstance + CLEAR_TOP): stop the first sound and rebind. */
+    /** Edge-to-edge (targetSdk 35+): keep the buttons clear of the system bars; the dark root paints behind them. */
+    private fun setupEdgeToEdge() {
+        val root = findViewById<View>(R.id.alarm_root) ?: return
+        val baseLeft = root.paddingLeft
+        val baseTop = root.paddingTop
+        val baseRight = root.paddingRight
+        val baseBottom = root.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            view.setPadding(baseLeft + insets.left, baseTop + insets.top, baseRight + insets.right, baseBottom + insets.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        ViewCompat.requestApplyInsets(root)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.setAppearanceLightStatusBars(false) // dark background -> light icons
+        controller.setAppearanceLightNavigationBars(false)
+    }
+
+    /**
+     * singleInstance + CLEAR_TOP: a tap on the notification of the alarm already ringing just brings the screen
+     * forward (keep the sound going); a different alarm stops the first sound and rebinds.
+     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        val id = intent.getStringExtra(EXTRA_ALARM_ID)
+        if (id != null && id == boundAlarmId && ringtone != null) return
         stopSound()
         bind(intent)
     }
@@ -80,6 +110,7 @@ class AlarmActivity : Activity() {
             finish()
             return
         }
+        boundAlarmId = spec.id
 
         findViewById<TextView>(R.id.alarm_title).text = spec.title
         findViewById<TextView>(R.id.alarm_body).text = spec.body

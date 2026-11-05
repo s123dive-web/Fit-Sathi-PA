@@ -66,16 +66,40 @@ object Notifications {
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** Android 14+ gates USE_FULL_SCREEN_INTENT behind a user grant for non alarm-clock apps. Always true below 34. */
+    /**
+     * True only when the manifest declares USE_FULL_SCREEN_INTENT. The permission is intentionally not declared
+     * (Play restricts it to alarm-clock / calling apps), so this is false on every API level and alarms take the
+     * heads-up path; the check is kept data-driven so declaring the permission again re-enables the path.
+     */
+    fun isFullScreenIntentDeclared(ctx: Context): Boolean {
+        return try {
+            @Suppress("DEPRECATION")
+            val info = ctx.packageManager.getPackageInfo(ctx.packageName, PackageManager.GET_PERMISSIONS)
+            val requested = info.requestedPermissions ?: return false
+            requested.contains(Manifest.permission.USE_FULL_SCREEN_INTENT)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Whether a full-screen intent would actually launch: the permission must be declared (see above) and, on
+     * Android 14+, granted by the user. Without the declaration the system ignores setFullScreenIntent entirely.
+     */
     fun canUseFullScreenIntent(ctx: Context): Boolean {
+        if (!isFullScreenIntentDeclared(ctx)) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return false
         return nm.canUseFullScreenIntent()
     }
 
-    /** Intent for the system screen where the user grants the full-screen-intent permission (API 34+ only). */
+    /**
+     * Intent for the system screen where the user grants the full-screen-intent permission. Null below API 34 and
+     * whenever the permission is not declared (the settings screen would be meaningless then).
+     */
     fun fullScreenIntentSettingsIntent(ctx: Context): Intent? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
+        if (!isFullScreenIntentDeclared(ctx)) return null
         return Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${ctx.packageName}"))
     }
 
@@ -110,11 +134,13 @@ object Notifications {
     /**
      * Posts the notification for a fired alarm.
      *
-     * Full-screen alarms: when the full-screen intent is permitted and will actually launch (screen off / locked)
-     * the notification goes on the silent channel and AlarmActivity makes the noise. Otherwise (screen on, or the
-     * permission was not granted on Android 14+) it is a high-priority heads-up banner with sound and the same
-     * action buttons. `fromActivity` re-posts the same notification silently and without a full-screen intent
-     * (used by AlarmActivity to stop any channel sound so audio is never doubled, and to avoid re-launching itself).
+     * Alarms (`spec.fullScreen`) are high-priority heads-up banners on the alarm channel (USAGE_ALARM sound +
+     * vibration) with the Done / Snooze action buttons; tapping the banner opens AlarmActivity, the ring screen.
+     * The full-screen-intent path is only taken when USE_FULL_SCREEN_INTENT is declared and granted *and* the
+     * intent will actually launch (screen off / locked); then the notification goes on the silent channel and
+     * AlarmActivity makes the noise. `fromActivity` re-posts the same notification silently and without a
+     * full-screen intent (used by AlarmActivity to stop any channel sound so audio is never doubled, and to
+     * avoid re-launching itself).
      */
     @SuppressLint("MissingPermission")
     fun showAlarm(ctx: Context, spec: AlarmSpec, fromActivity: Boolean = false) {
@@ -136,11 +162,14 @@ object Notifications {
             .setPriority(if (spec.fullScreen) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(if (spec.fullScreen) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setContentIntent(openApp(ctx, spec.notificationId))
+            // Alarms open the ring screen on tap (the full-screen path is normally unavailable); reminders open the app.
+            .setContentIntent(if (spec.fullScreen) AlarmActivity.pendingIntent(ctx, spec) else openApp(ctx, spec.notificationId))
         if (spec.fullScreen) {
             if (silent) b.setSilent(true) else b.setVibrate(ALARM_VIBRATION)
             if (fsiAllowed) b.setFullScreenIntent(AlarmActivity.pendingIntent(ctx, spec), true)
             if (fromActivity) b.setOnlyAlertOnce(true)
+            // Lock screen: keep the alarm title / actions visible so it can be answered without unlocking.
+            b.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         }
         val kind = when (spec.kind) { "fasting", "motivation", "workout" -> "habit"; else -> spec.kind }
         var code = spec.notificationId * 7

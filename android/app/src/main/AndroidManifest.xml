@@ -65,7 +65,9 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Full-screen alarm UI (supplements / workout) -->
+        <!-- Alarm ring screen (supplements / workout). Opened by tapping the heads-up alarm notification; it can
+             show over the lock screen and turn the screen on. It is not launched as a full-screen intent
+             (USE_FULL_SCREEN_INTENT is intentionally not declared). -->
         <activity
             android:name=".alarms.AlarmActivity"
             android:exported="false"
@@ -99,20 +101,35 @@
         </receiver>
     </application>
 
-    <!-- Permissions -->
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+        Permissions. FitSaathi is fully offline: it has no server, no account and no analytics, so it does not
+        request INTERNET. Each permission below maps to one user-facing feature:
+
+        POST_NOTIFICATIONS        Habit / water / fasting reminders, supplement and workout alarms, and the optional
+                                  pinned "today's checklist" notification. Requested at runtime on Android 13+.
+        SCHEDULE_EXACT_ALARM      Supplement and workout alarms ring at the minute the user chose. The user grants it
+                                  in system settings (Android 12+); when denied the app silently falls back to
+                                  inexact alarms (a 10-minute window).
+        RECEIVE_BOOT_COMPLETED    Re-arm the user's alarms after a reboot or app update (AlarmManager drops them).
+        VIBRATE                   Vibration pattern for alarms and the alarm ring screen.
+        WAKE_LOCK                 Short (max 10 s) partial wake lock in AlarmReceiver so a fired alarm's notification is
+                                  posted and the next occurrence re-armed before a dozing device sleeps again.
+        USE_BIOMETRIC             Optional fingerprint / face unlock of the app (PIN stays the fallback).
+        CAMERA                    Optional progress photos taken with the camera; stored encrypted on the device.
+                                  Picking from the gallery uses the system photo picker and needs no storage permission.
+        health.READ_STEPS         Read-only daily step count from Health Connect, shown on the Today / Progress tabs.
+                                  Never written back, never uploaded (see PermissionsRationaleActivity / PRIVACY.md).
+
+        Not declared on purpose: INTERNET (no network use), READ_EXTERNAL_STORAGE / READ_MEDIA_* (system picker),
+        USE_FULL_SCREEN_INTENT (alarms use heads-up notifications that open the ring screen on tap).
+    -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Camera (progress photos). The gallery path uses the system picker, which needs no media permission;
-         READ_EXTERNAL_STORAGE only backs @capacitor/camera's saveToGallery alias on API 29-32. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <!-- Health Connect, read-only -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
 </manifest>

@@ -8,8 +8,9 @@ android {
         applicationId "com.fitsaathi.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI sets VERSION_CODE / VERSION_NAME (see .github/workflows/build.yml); local builds get 1 / 1.0.0.
+        versionCode Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
+        versionName System.getenv("VERSION_NAME") ?: "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -29,10 +30,52 @@ android {
         abortOnError false
         checkReleaseBuilds true
     }
-    buildTypes {
+    // Release signing comes from the environment (CI decodes the upload keystore into ANDROID_KEYSTORE_PATH).
+    // Without it the release build is signed with the committed debug keystore so it still installs for
+    // testing; Play will refuse such an upload, hence the warning.
+    def releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    def releaseKeystoreFile = (releaseKeystorePath != null && !releaseKeystorePath.isEmpty()) ? file(releaseKeystorePath) : null
+    def hasReleaseKeystore = releaseKeystoreFile != null && releaseKeystoreFile.exists()
+    if (!hasReleaseKeystore) {
+        logger.warn("WARNING: ANDROID_KEYSTORE_PATH is unset or does not exist; the release build will be signed with the debug keystore (not accepted by Google Play).")
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
         release {
-            minifyEnabled false
+            if (hasReleaseKeystore) {
+                storeFile releaseKeystoreFile
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            } else {
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packaging {
+        jniLibs {
+            // 16 KB page-size compliance (Play requirement for targetSdk 35+): keep native libraries uncompressed
+            // and page-aligned in the APK. sqlcipher-android 4.17.0 ships 16 KB aligned .so files.
+            useLegacyPackaging = false
         }
     }
 }

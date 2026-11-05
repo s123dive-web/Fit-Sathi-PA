@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Page background of the web app (Tailwind bg-slate-50). Painted behind the WebView so the area under the
+         edge-to-edge status / navigation bars matches the page. Night variant in values-night/colors.xml. -->
+    <color name="page_background">#F8FAFC</color>
+    <color name="page_text_primary">#0F172A</color>
+    <color name="page_text_secondary">#334155</color>
+    <color name="page_link">#1D4ED8</color>
+    <!-- Alarm ring screen (always dark). -->
+    <color name="alarm_background">#0F172A</color>
+</resources>
