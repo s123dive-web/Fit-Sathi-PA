@@ -28,8 +28,9 @@ npm run cap:open       # open android/ in Android Studio
 npm run android:assemble   # build + gradle assembleDebug → android/app/build/outputs/apk/debug/
 ```
 
-Requirements for the Android build: Android Studio (or command-line SDK) with **compileSdk 34**,
-JDK 17, Gradle 8.2 (wrapper included). `minSdk` is 26 because of Health Connect.
+Requirements for a local Android build: Android Studio (or command-line SDK) with **compileSdk 36**,
+JDK 21, Gradle 8.14.3 (wrapper included), Capacitor 8. `minSdk` is 26 because of Health Connect. You do not need a
+local SDK: GitHub Actions builds the debug APK, release APK and release AAB on every push to `main`.
 
 On first launch choose **Import profile JSON** (pick the file, or paste it) or **Fill manually**.
 
@@ -202,9 +203,16 @@ the stored hash is ever missing while the lock is on, only _Forgot PIN?_ (erase)
 cooldowns (30 s after 5, 5 min after 8, 30 min after 10). There is no account, so _Forgot PIN?_ can only erase
 the device data and start again (a backup can be restored afterwards).
 
+## Publishing to Google Play
+
+`docs/PLAY_CHECKLIST.md` has the full list: target API 36, release signing from repository secrets, the exact
+permission declarations, Data safety answers, the privacy policy (`PRIVACY.md`), store-listing text and the closed
+testing requirement for new developer accounts.
+
 ## Privacy
 
-- All data in an on-device SQLite database. No accounts, no analytics, no network calls.
+- All data in an on-device SQLite database encrypted at rest (SQLCipher). No accounts, no analytics, no network
+  calls, and no Internet permission. Full policy: `PRIVACY.md`.
 - Backups are AES-256-GCM encrypted with your passphrase (PBKDF2-SHA256, 600k iterations, header authenticated)
   and written only where you point the system file picker. The app-lock state (PIN hash, salt, attempt counters)
   is never exported and never restored.

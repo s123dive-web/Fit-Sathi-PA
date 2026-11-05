@@ -26,16 +26,17 @@ single delivery of notification actions, Android 14 full-screen-intent grant, ex
 `app-debug.apk` as a workflow artifact and as a `build-N` GitHub release. Device checks in `docs/ALARM_TEST.md` still
 need a phone or emulator.
 
-## 2. SQLCipher not used; backups are AES-encrypted on export — accepted alternative
+## 2. SQLCipher not used; backups are AES-encrypted on export — RESOLVED (SQLCipher enabled for Play readiness)
 
 **Affects:** REQUIREMENTS #49.
 **Reason:** The spec allows "SQLCipher or AES on export". The live SQLite file is in app-private storage
 (already sandboxed by Android); the exported backup is the copy that leaves the sandbox, so it is encrypted
 with AES-256-GCM using a PBKDF2 (600k iterations, SHA-256) passphrase key; the plaintext header is bound as GCM additional data and the app-lock keys are stripped from every export. Photos are additionally encrypted
 at rest with an Android Keystore key.
-**Alternative:** `@capacitor-community/sqlite` supports SQLCipher with `androidIsEncryption: true`
-in `capacitor.config.ts` if at-rest DB encryption is wanted later; no code changes needed beyond the flag
-and a passphrase flow.
+**Update:** `androidIsEncryption: true` is now set and `src/db/database.ts` opens the native database with a random
+256-bit secret kept by the plugin in EncryptedSharedPreferences (mode `secret`; an older unencrypted file is converted
+in place with mode `encryption`). The plugin was upgraded to 8.x so the bundled SQLCipher (4.17) is 16 KB page-size
+aligned, which Play requires for apps targeting API 35+.
 
 ## 3. "Material 3" is approximated with Tailwind, not the Material component library — PARTIAL
 
