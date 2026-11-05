@@ -21,7 +21,15 @@ export async function changePin(pin: string): Promise<void> {
 }
 
 export async function disableAppLock(): Promise<void> {
-  await settingsRepo.update({ appLockEnabled: false, pinHash: null, pinSalt: null, biometricEnabled: false, failedAttempts: 0, lockoutUntil: null, lastFailedAt: null });
+  await settingsRepo.update({
+    appLockEnabled: false,
+    pinHash: null,
+    pinSalt: null,
+    biometricEnabled: false,
+    failedAttempts: 0,
+    lockoutUntil: null,
+    lastFailedAt: null,
+  });
   useLockStore.getState().unlock();
   notifyChange();
 }

@@ -155,11 +155,14 @@
     "privacy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["photoConsent", "driveBackup", "futureLookCloud"],
+      "required": ["photoConsent", "driveBackup"],
       "properties": {
         "photoConsent": { "type": "boolean" },
         "driveBackup": { "type": "boolean" },
-        "futureLookCloud": { "type": "boolean", "description": "v2 opt-in: would send a photo to a cloud image service. Default false." }
+        "futureLookCloud": {
+          "type": "boolean",
+          "description": "Deprecated and ignored: kept optional so older profile files still validate. Never written by the app."
+        }
       }
     },
     "nutritionTargets": {

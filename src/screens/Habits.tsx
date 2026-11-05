@@ -280,7 +280,11 @@ function HabitDetail({
 
       <div className="grid grid-cols-2 gap-3">
         <Stat label={t('habits.strength')} value={<span style={{ color: habit.color }}>{stats.strength.percent}%</span>} sub={t('habits.strengthHint')} />
-        <Stat label={t('habits.currentStreak')} value={t('habits.streakCount', { n: stats.streak.current })} sub={t('habits.best', { n: stats.streak.best, unit: unitLabel })} />
+        <Stat
+          label={t('habits.currentStreak')}
+          value={t('habits.streakCount', { n: stats.streak.current })}
+          sub={t('habits.best', { n: stats.streak.best, unit: unitLabel })}
+        />
         <Stat
           label={t('habits.last30')}
           value={`${stats.stats30.percent}%`}
@@ -559,7 +563,9 @@ function HabitEditor({
             label={t('habits.reminder')}
           />
         </div>
-        {draft.reminderEnabled && <TimeInput value={draft.reminderTime ?? defaultReminder} onChange={(v) => set({ reminderTime: v })} label={t('habits.reminder')} />}
+        {draft.reminderEnabled && (
+          <TimeInput value={draft.reminderTime ?? defaultReminder} onChange={(v) => set({ reminderTime: v })} label={t('habits.reminder')} />
+        )}
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm">{t('habits.pinned')}</div>

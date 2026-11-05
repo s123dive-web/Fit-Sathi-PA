@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { FitBiometric } from '../native/plugins';
 
 /**
  * App-lock runtime state. Persistent settings (PIN hash, enabled flags, timeout) live in SQLite;
@@ -31,3 +32,15 @@ export const useLockStore = create<LockState>((set, get) => ({
     else set({ backgroundedAt: null });
   },
 }));
+
+/**
+ * Toggle FLAG_SECURE (no screenshots / recents thumbnail). Best effort: failures and the web no-op are ignored,
+ * so callers can fire-and-forget from effects and event handlers.
+ */
+export function secureScreen(enabled: boolean): void {
+  try {
+    void FitBiometric.setSecureScreen({ enabled }).catch(() => undefined);
+  } catch {
+    /* plugin unavailable (tests, old native builds) */
+  }
+}

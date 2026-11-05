@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Safe areas. On Android the native shell already pads the WebView for the status / navigation bars
+ * (edge-to-edge), so env() resolves to 0 there; these only add inset on browsers that report one.
+ * Screens must therefore never depend on these being non-zero (the TabBar carries its own 12px).
+ */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);

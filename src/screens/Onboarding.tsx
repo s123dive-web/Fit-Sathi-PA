@@ -9,6 +9,7 @@ import { notifyChange, toast } from '../store/appStore';
 import { syncNative } from '../services/sync';
 import { FitAlarms } from '../native/plugins';
 import { t } from '../i18n';
+import { PRIVACY_POLICY_URL } from '../components/AboutCard';
 
 type Step = 'choose' | 'import' | 'manual';
 
@@ -77,7 +78,6 @@ export function Onboarding({ existing }: { existing: Profile | null }) {
             <div className="text-lg font-semibold">{t('onboarding.manualTitle')}</div>
             <p className="text-sm text-slate-500">{t('onboarding.manualBody')}</p>
           </button>
-          <p className="px-2 text-center text-xs text-slate-400">{t('app.offlineNote')}</p>
         </div>
       )}
 
@@ -101,7 +101,13 @@ export function Onboarding({ existing }: { existing: Profile | null }) {
 
       {step === 'manual' && (
         <div className="space-y-4">
-          <ProfileForm value={draft} onChange={setDraft} heightUnit={heightUnit} onHeightUnit={setHeightUnit} weightUnit={draft.preferences?.weightUnit ?? 'kg'} />
+          <ProfileForm
+            value={draft}
+            onChange={setDraft}
+            heightUnit={heightUnit}
+            onHeightUnit={setHeightUnit}
+            weightUnit={draft.preferences?.weightUnit ?? 'kg'}
+          />
           <Card>
             <label className="flex min-h-[44px] items-center gap-2 text-sm">
               <input type="checkbox" checked={createHabits} onChange={(e) => setCreateHabits(e.target.checked)} />
@@ -128,6 +134,18 @@ export function Onboarding({ existing }: { existing: Profile | null }) {
           </div>
         </div>
       )}
+
+      <footer className="mt-8 px-2 text-center text-xs text-slate-400">
+        <p>{t('onboarding.privacyNote')}</p>
+        <a
+          className="mt-1 inline-flex min-h-[44px] items-center text-brand-600 underline-offset-2 hover:underline"
+          href={PRIVACY_POLICY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t('about.privacyPolicy')}
+        </a>
+      </footer>
     </div>
   );
 }

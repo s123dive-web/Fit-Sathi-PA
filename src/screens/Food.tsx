@@ -101,6 +101,7 @@ export function Food({ profile }: { profile: Profile }) {
             }
           />
         </div>
+        <p className="mt-3 text-[11px] text-slate-400">{t('food.disclaimer')}</p>
       </Card>
 
       <button className="btn-primary w-full" onClick={() => setPicker(true)}>
@@ -497,7 +498,15 @@ function CustomFoodEditor({ open, onClose }: { open: boolean; onClose: () => voi
           <input className="input" type="number" min={0} inputMode="decimal" value={nums.kcal} aria-invalid={!!numError('kcal')} onChange={num('kcal')} />
         </Field>
         <Field label={t('food.gramsLabel', { label: t('food.protein') })} error={numError('proteinG')}>
-          <input className="input" type="number" min={0} inputMode="decimal" value={nums.proteinG} aria-invalid={!!numError('proteinG')} onChange={num('proteinG')} />
+          <input
+            className="input"
+            type="number"
+            min={0}
+            inputMode="decimal"
+            value={nums.proteinG}
+            aria-invalid={!!numError('proteinG')}
+            onChange={num('proteinG')}
+          />
         </Field>
         <Field label={t('food.gramsLabel', { label: t('food.carbs') })} error={numError('carbsG')}>
           <input className="input" type="number" min={0} inputMode="decimal" value={nums.carbsG} aria-invalid={!!numError('carbsG')} onChange={num('carbsG')} />

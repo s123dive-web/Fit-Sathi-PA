@@ -14,7 +14,9 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95"
-      style={{ paddingBottom: 'var(--safe-bottom)' }}
+      // Native pads the WebView for system bars (so --safe-bottom is 0 there); a fixed 12px keeps the bar
+      // comfortably clear of the gesture area on both native and the web preview.
+      style={{ paddingBottom: 'calc(12px + var(--safe-bottom))' }}
       aria-label={t('nav.main')}
     >
       <div className="mx-auto flex max-w-lg md:max-w-3xl">

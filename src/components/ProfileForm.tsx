@@ -125,9 +125,13 @@ export function ProfileForm({
             </Field>
           </div>
           <Field label={t('form.age')} error={errorFor('age')}>
-            {numInput('age', (n) => {
-              if (n >= LIMITS.age.min && n <= LIMITS.age.max) setUser({ age: Math.round(n) });
-            }, { min: LIMITS.age.min, max: LIMITS.age.max, inputMode: 'numeric' })}
+            {numInput(
+              'age',
+              (n) => {
+                if (n >= LIMITS.age.min && n <= LIMITS.age.max) setUser({ age: Math.round(n) });
+              },
+              { min: LIMITS.age.min, max: LIMITS.age.max, inputMode: 'numeric' },
+            )}
           </Field>
           <Field label={t('form.sex')}>
             <select className="input" value={p.user.sex ?? 'other'} onChange={(e) => setUser({ sex: e.target.value as Profile['user']['sex'] })}>
@@ -164,37 +168,57 @@ export function ProfileForm({
           </Field>
           {heightUnit === 'cm' ? (
             <Field label={t('form.heightCm')} error={errorFor('heightCm')}>
-              {numInput('heightCm', (n) => {
-                if (n >= LIMITS.heightCm.min && n <= LIMITS.heightCm.max) setUser({ heightCm: n });
-              }, { min: LIMITS.heightCm.min, max: LIMITS.heightCm.max })}
+              {numInput(
+                'heightCm',
+                (n) => {
+                  if (n >= LIMITS.heightCm.min && n <= LIMITS.heightCm.max) setUser({ heightCm: n });
+                },
+                { min: LIMITS.heightCm.min, max: LIMITS.heightCm.max },
+              )}
             </Field>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <Field label={t('form.ft')} error={errorFor('ft')}>
-                {numInput('ft', (n) => {
-                  const cm = ftInToCm(n, parseNum(strs.inch) ?? 0);
-                  if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
-                }, { min: 3, max: 8, inputMode: 'numeric' })}
+                {numInput(
+                  'ft',
+                  (n) => {
+                    const cm = ftInToCm(n, parseNum(strs.inch) ?? 0);
+                    if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
+                  },
+                  { min: 3, max: 8, inputMode: 'numeric' },
+                )}
               </Field>
               <Field label={t('form.in')} error={errorFor('inch')}>
-                {numInput('inch', (n) => {
-                  const cm = ftInToCm(parseNum(strs.ft) ?? 0, n);
-                  if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
-                }, { min: 0, max: 11, inputMode: 'numeric' })}
+                {numInput(
+                  'inch',
+                  (n) => {
+                    const cm = ftInToCm(parseNum(strs.ft) ?? 0, n);
+                    if (cm >= LIMITS.heightCm.min && cm <= LIMITS.heightCm.max) setUser({ heightCm: cm });
+                  },
+                  { min: 0, max: 11, inputMode: 'numeric' },
+                )}
               </Field>
             </div>
           )}
           <Field label={t('form.currentWeightUnit', { unit: unitLabel })} error={errorFor('currentWeight')}>
-            {numInput('currentWeight', (n) => {
-              const kg = parseWeightInput(n, weightUnit);
-              if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ currentWeightKg: Math.round(kg * 10) / 10 });
-            }, { step: '0.1', min: wMin, max: wMax })}
+            {numInput(
+              'currentWeight',
+              (n) => {
+                const kg = parseWeightInput(n, weightUnit);
+                if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ currentWeightKg: Math.round(kg * 10) / 10 });
+              },
+              { step: '0.1', min: wMin, max: wMax },
+            )}
           </Field>
           <Field label={t('form.targetWeightUnit', { unit: unitLabel })} error={errorFor('targetWeight')}>
-            {numInput('targetWeight', (n) => {
-              const kg = parseWeightInput(n, weightUnit);
-              if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ targetWeightKg: Math.round(kg * 10) / 10 });
-            }, { step: '0.1', min: wMin, max: wMax })}
+            {numInput(
+              'targetWeight',
+              (n) => {
+                const kg = parseWeightInput(n, weightUnit);
+                if (kg >= LIMITS.weightKg.min && kg <= LIMITS.weightKg.max) setUser({ targetWeightKg: Math.round(kg * 10) / 10 });
+              },
+              { step: '0.1', min: wMin, max: wMax },
+            )}
           </Field>
           <div className="col-span-2">
             <Field label={t('form.activity')}>
@@ -246,9 +270,13 @@ export function ProfileForm({
             </Field>
           </div>
           <Field label={t('form.waterTarget')} error={errorFor('waterMl')}>
-            {numInput('waterMl', (n) => {
-              if (n >= LIMITS.waterMl.min && n <= LIMITS.waterMl.max) set({ water: { targetMl: Math.round(n) } });
-            }, { step: 250, min: LIMITS.waterMl.min, max: LIMITS.waterMl.max, inputMode: 'numeric' })}
+            {numInput(
+              'waterMl',
+              (n) => {
+                if (n >= LIMITS.waterMl.min && n <= LIMITS.waterMl.max) set({ water: { targetMl: Math.round(n) } });
+              },
+              { step: 250, min: LIMITS.waterMl.min, max: LIMITS.waterMl.max, inputMode: 'numeric' },
+            )}
           </Field>
         </div>
       </Card>
@@ -414,7 +442,9 @@ export function ProfileForm({
                 min={0}
                 value={p.nutritionTargets?.proteinG ?? ''}
                 placeholder={t('common.auto')}
-                onChange={(e) => set({ nutritionTargets: { ...p.nutritionTargets, proteinG: e.target.value ? Math.max(0, Number(e.target.value)) : undefined } })}
+                onChange={(e) =>
+                  set({ nutritionTargets: { ...p.nutritionTargets, proteinG: e.target.value ? Math.max(0, Number(e.target.value)) : undefined } })
+                }
               />
             </Field>
           </div>

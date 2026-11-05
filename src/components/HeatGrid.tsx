@@ -33,7 +33,16 @@ export function HeatGrid({
   const describe = (d: ISODate): string => {
     const st = byDate.get(d);
     const isSched = scheduled ? scheduled(d) : true;
-    const status = d > today ? t('habits.future') : st ? t(`habits.legend${st === 'done' ? 'Done' : st === 'skip' ? 'Skipped' : 'Missed'}`) : !isSched ? t('habits.notScheduled') : d < today ? t('habits.legendMissed') : t('habits.noLog');
+    const status =
+      d > today
+        ? t('habits.future')
+        : st
+          ? t(`habits.legend${st === 'done' ? 'Done' : st === 'skip' ? 'Skipped' : 'Missed'}`)
+          : !isSched
+            ? t('habits.notScheduled')
+            : d < today
+              ? t('habits.legendMissed')
+              : t('habits.noLog');
     return t('habits.cellLabel', { date: formatDateShort(d), status });
   };
 

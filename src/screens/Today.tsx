@@ -10,7 +10,7 @@ import { fastingState } from '../utils/fasting';
 import { levelFromXp } from '../utils/xp';
 import { displayWeight, parseWeightInput } from '../utils/units';
 import { addWater, logWeight, setHabitStatus, toggleSupplement, undoWater } from '../services/actions';
-import { enableHealthConnect, refreshSteps, type StepsState } from '../services/health';
+import { disableHealthConnect, enableHealthConnect, refreshSteps, type StepsState } from '../services/health';
 import { t } from '../i18n';
 
 /** Streaks only need a bounded window of history; 400 days covers a year of weekly habits. */
@@ -217,7 +217,11 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
                           done={taken}
                           color="#8b5cf6"
                           disabled={busy}
-                          label={taken ? t('today.supplementTaken', { name: s.name, time: shownTime }) : t('today.supplementMarkTaken', { name: s.name, time: shownTime })}
+                          label={
+                            taken
+                              ? t('today.supplementTaken', { name: s.name, time: shownTime })
+                              : t('today.supplementMarkTaken', { name: s.name, time: shownTime })
+                          }
                           onClick={(anchor) => void pending.run(`sup:${s.id}`, !taken, () => toggleSupplement(s.id, today, !taken, anchor))}
                         />
                         <div className="min-w-0 flex-1">
@@ -286,7 +290,11 @@ function RowMenu({
       <button
         type="button"
         className={`min-h-[44px] min-w-[44px] rounded-lg text-lg leading-none ${
-          status === 'skip' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : status === 'miss' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : 'text-slate-500'
+          status === 'skip'
+            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
+            : status === 'miss'
+              ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200'
+              : 'text-slate-500'
         }`}
         aria-label={t('common.moreActions', { name })}
         aria-haspopup="menu"
@@ -408,7 +416,12 @@ function WaterCard({
           <button className="btn-ghost w-12 p-0" onClick={onUndo} aria-label={t('today.undoWater')} disabled={ml <= 0 || busy}>
             −
           </button>
-          <button className="btn-primary flex-1 bg-sky-600 hover:bg-sky-700" aria-busy={busy || undefined} disabled={busy} onClick={(e) => onAdd(eventAnchor(e))}>
+          <button
+            className="btn-primary flex-1 bg-sky-600 hover:bg-sky-700"
+            aria-busy={busy || undefined}
+            disabled={busy}
+            onClick={(e) => onAdd(eventAnchor(e))}
+          >
             {t('today.addWater')}
           </button>
         </div>
@@ -586,6 +599,26 @@ function StepsCard({ steps, settings }: { steps: number | null; settings: Settin
           </button>
         )}
       </div>
+      {settings.healthConnectEnabled && (
+        <button
+          className="mt-2 min-h-[44px] text-xs text-brand-600 underline-offset-2 hover:underline"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await disableHealthConnect();
+              setState({ steps: null, status: 'disabled' });
+              toast(t('today.stepsDisconnected'));
+            } catch (e) {
+              toast(t('common.actionFailed', { msg: errMsg(e) }), 'error');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {t('today.manageHealthConnect')}
+        </button>
+      )}
     </Card>
   );
 }

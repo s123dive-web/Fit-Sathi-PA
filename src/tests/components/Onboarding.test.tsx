@@ -33,6 +33,12 @@ describe('<Onboarding />', () => {
     render(<Onboarding existing={null} />);
     expect(screen.getByText('📄 Import profile JSON')).toBeInTheDocument();
     expect(screen.getByText('✍️ Fill manually')).toBeInTheDocument();
+    // Footer: on-device promise plus the privacy policy link (opens outside the app).
+    expect(screen.getByText(t('onboarding.privacyNote'))).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: t('about.privacyPolicy') });
+    expect(link).toHaveAttribute('href', expect.stringContaining('PRIVACY.md'));
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('rejects an invalid JSON profile with field errors', async () => {

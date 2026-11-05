@@ -44,6 +44,13 @@ describe('<Food />', () => {
     return screen.getByLabelText(t('food.time')) as HTMLInputElement;
   };
 
+  it('shows the targets disclaimer under the daily totals', async () => {
+    const { Food } = await import('../../screens/Food');
+    render(<Food profile={profile} />);
+    await screen.findByText(t('food.meals'));
+    expect(screen.getByText(t('food.disclaimer'))).toBeInTheDocument();
+  });
+
   it('resets the picker (time, servings, selection) every time it opens', async () => {
     const { Food } = await import('../../screens/Food');
     render(<Food profile={profile} />);

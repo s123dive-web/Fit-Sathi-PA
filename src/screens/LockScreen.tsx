@@ -6,6 +6,7 @@ import { attemptPin, biometricUnlock, remainingLockout, unlockApp } from '../ser
 import { eraseAllData } from '../services/erase';
 import { FitBiometric } from '../native/plugins';
 import { toast } from '../store/appStore';
+import { secureScreen } from '../store/lockStore';
 import { successHaptic } from '../utils/haptics';
 import { t, tn } from '../i18n';
 
@@ -17,6 +18,11 @@ export function LockScreen({ settings, name }: { settings: Settings; name: strin
   const [confirmErase, setConfirmErase] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [shakeKey, setShakeKey] = useState(0);
+
+  // The lock screen is the one place FLAG_SECURE must always be on (hides the PIN pad from recents / screenshots).
+  useEffect(() => {
+    secureScreen(true);
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;

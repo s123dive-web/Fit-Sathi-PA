@@ -4,7 +4,8 @@ import type { Profile, ProgressPhoto, Settings, WeeklySummary } from '../types';
 import { photoRepo, profileRepo, summaryRepo, weightRepo } from '../db/repos';
 import { t } from '../i18n';
 import { notifyChange, toast, useAsyncData } from '../store/appStore';
-import { Card, ConfirmDialog, EmptyState, ErrorCard, Modal, Spinner, Stat, Toggle } from '../components/ui';
+import { secureScreen } from '../store/lockStore';
+import { Card, ConfirmDialog, EmptyState, ErrorCard, Modal, Spinner, Stat } from '../components/ui';
 import { formatDateShort, todayISO } from '../utils/dates';
 import { buildTrendSeries, goalDirection, projectToTarget, type Projection } from '../utils/projection';
 import { computeInsights } from '../utils/insights';
@@ -93,14 +94,27 @@ export function Progress({ profile, settings }: { profile: Profile; settings: Se
                     <CartesianGrid strokeDasharray="3 3" stroke={grid} />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: axis }} stroke={axis} minTickGap={28} />
                     <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: axis }} stroke={axis} />
-                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: tooltipStyle.color }} labelStyle={{ color: axis }} formatter={(v: number | string) => `${v} ${unit}`} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      itemStyle={{ color: tooltipStyle.color }}
+                      labelStyle={{ color: axis }}
+                      formatter={(v: number | string) => `${v} ${unit}`}
+                    />
                     <ReferenceLine
                       y={displayWeight(profile.user.targetWeightKg, unit)}
                       stroke="#22a566"
                       strokeDasharray="4 4"
                       label={{ value: t('progress.target'), fontSize: 10, fill: '#22a566', position: 'insideTopRight' }}
                     />
-                    <Line type="monotone" dataKey="kg" name={t('progress.seriesWeight')} stroke={isDark ? '#94a3b8' : '#64748b'} strokeWidth={1.5} dot={{ r: 2 }} connectNulls />
+                    <Line
+                      type="monotone"
+                      dataKey="kg"
+                      name={t('progress.seriesWeight')}
+                      stroke={isDark ? '#94a3b8' : '#64748b'}
+                      strokeWidth={1.5}
+                      dot={{ r: 2 }}
+                      connectNulls
+                    />
                     <Line type="monotone" dataKey="ma7" name={t('progress.seriesMa7')} stroke="#0ea5e9" strokeWidth={2.5} dot={false} connectNulls />
                     <Line
                       type="monotone"
@@ -161,6 +175,7 @@ export function Progress({ profile, settings }: { profile: Profile; settings: Se
                 />
               </div>
             </div>
+            <p className="mt-3 text-[11px] text-slate-400">{t('progress.disclaimer')}</p>
           </Card>
 
           <Card
@@ -226,7 +241,9 @@ export function Progress({ profile, settings }: { profile: Profile; settings: Se
         </>
       )}
 
-      {view === 'photos' && <Photos profile={profile} photos={data.photos} unit={unit} latestKg={projection.latestKg} />}
+      {view === 'photos' && (
+        <Photos profile={profile} photos={data.photos} unit={unit} latestKg={projection.latestKg} appLockEnabled={settings.appLockEnabled} />
+      )}
     </div>
   );
 }
@@ -268,38 +285,38 @@ function FutureLookCard({ photos, projection, profile }: { photos: ProgressPhoto
           {t('progress.photoTimeline', { n: photos.length, from: formatDateShort(first.date), to: formatDateShort(last.date) })}
         </p>
       )}
-      <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-3 dark:border-slate-700">
-        <div>
-          <div className="text-sm font-medium">{t('progress.cloudTitle')}</div>
-          <p className="text-xs text-slate-500">{t('progress.cloudBody')}</p>
-        </div>
-        <Toggle
-          checked={profile.privacy.futureLookCloud}
-          label={t('progress.cloudTitle')}
-          onChange={async (v) => {
-            try {
-              await profileRepo.save({ ...profile, privacy: { ...profile.privacy, futureLookCloud: v } });
-              notifyChange();
-              toast(v ? t('progress.cloudOn') : t('progress.cloudOff'));
-            } catch (e) {
-              toast(t('common.actionFailed', { msg: e instanceof Error ? e.message : String(e) }), 'error');
-            }
-          }}
-        />
-      </div>
     </Card>
   );
 }
 
-function Photos({ profile, photos, unit, latestKg }: { profile: Profile; photos: ProgressPhoto[]; unit: Settings['weightUnit']; latestKg: number | null }) {
+function Photos({
+  profile,
+  photos,
+  unit,
+  latestKg,
+  appLockEnabled,
+}: {
+  profile: Profile;
+  photos: ProgressPhoto[];
+  unit: Settings['weightUnit'];
+  latestKg: number | null;
+  appLockEnabled: boolean;
+}) {
   const [compare, setCompare] = useState<{ a: ProgressPhoto; b: ProgressPhoto } | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [preview, setPreview] = useState<ProgressPhoto | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [consentFor, setConsentFor] = useState<'camera' | 'gallery' | null>(null);
 
-  const capture = async (source: 'camera' | 'gallery') => {
-    if (!profile.privacy.photoConsent) return toast(t('progress.consentFirst'), 'error');
+  // Progress photos are sensitive: block screenshots / the recents thumbnail while this tab is on screen,
+  // then fall back to whatever the app-lock setting wants once it unmounts.
+  useEffect(() => {
+    secureScreen(true);
+    return () => secureScreen(appLockEnabled);
+  }, [appLockEnabled]);
+
+  const doCapture = async (source: 'camera' | 'gallery') => {
     setBusy(true);
     try {
       const p = await captureProgressPhoto(latestKg, note, source);
@@ -315,6 +332,9 @@ function Photos({ profile, photos, unit, latestKg }: { profile: Profile; photos:
     }
   };
 
+  // First capture without consent: explain (encrypted on device, never uploaded) and ask before opening the camera.
+  const capture = (source: 'camera' | 'gallery') => (profile.privacy.photoConsent ? doCapture(source) : setConsentFor(source));
+
   const first = photos[0];
   const last = photos[photos.length - 1];
 
@@ -325,16 +345,38 @@ function Photos({ profile, photos, unit, latestKg }: { profile: Profile; photos:
         {!profile.privacy.photoConsent && (
           <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('progress.consentOff')}</p>
         )}
-        <input className="input mt-3" placeholder={t('progress.noteHint')} aria-label={t('progress.noteHint')} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input
+          className="input mt-3"
+          placeholder={t('progress.noteHint')}
+          aria-label={t('progress.noteHint')}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
         <div className="mt-2 flex gap-2">
-          <button className="btn-primary flex-1" disabled={busy || !profile.privacy.photoConsent} onClick={() => void capture('camera')}>
+          <button className="btn-primary flex-1" disabled={busy} onClick={() => void capture('camera')}>
             {t('progress.takePhoto')}
           </button>
-          <button className="btn-ghost" disabled={busy || !profile.privacy.photoConsent} onClick={() => void capture('gallery')}>
+          <button className="btn-ghost" disabled={busy} onClick={() => void capture('gallery')}>
             {t('progress.gallery')}
           </button>
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={consentFor !== null}
+        title={t('progress.consentTitle')}
+        body={t('progress.consentBody')}
+        confirmLabel={t('progress.consentAllow')}
+        destructive={false}
+        onClose={() => setConsentFor(null)}
+        onConfirm={async () => {
+          const source = consentFor;
+          await profileRepo.save({ ...profile, privacy: { ...profile.privacy, photoConsent: true } });
+          notifyChange();
+          toast(t('progress.consentSaved'), 'success');
+          if (source) void doCapture(source);
+        }}
+      />
 
       {first && last && first.id !== last.id && (
         <Card
@@ -486,9 +528,7 @@ function PhotoThumb({ photo, unit, caption, large }: { photo: ProgressPhoto; uni
   const [err, setErr] = useState(false);
   useEffect(() => {
     let alive = true;
-    (large ? loadPhotoDataUrl(photo.path) : loadThumb(photo.path))
-      .then((u) => alive && setSrc(u))
-      .catch(() => alive && setErr(true));
+    (large ? loadPhotoDataUrl(photo.path) : loadThumb(photo.path)).then((u) => alive && setSrc(u)).catch(() => alive && setErr(true));
     return () => {
       alive = false;
     };

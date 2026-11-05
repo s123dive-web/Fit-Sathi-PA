@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import type { HeightUnit, NotificationPrefs, Profile, Settings } from '../types';
 import { habitRepo, profileRepo, settingsRepo } from '../db/repos';
 import { notifyChange, toast } from '../store/appStore';
+import { secureScreen } from '../store/lockStore';
 import { Card, ConfirmDialog, Field, Modal, Stat, TimeInput, Toggle } from '../components/ui';
 import { ProfileForm } from '../components/ProfileForm';
 import { ProfileImport } from '../components/ProfileImport';
+import { AboutCard } from '../components/AboutCard';
 import { exportProfileJson, habitsFromProfile, habitsToProfile, validateProfile } from '../utils/profile';
 import { nutritionTargets } from '../utils/nutrition';
 import { bmi, formatHeight, formatWeight } from '../utils/units';
@@ -20,6 +22,19 @@ import { t } from '../i18n';
 
 type Mode = 'view' | 'edit' | 'import';
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+export const PASSPHRASE_MIN = 8;
+
+export type PassphraseStrength = 'weak' | 'ok' | 'strong';
+
+/** Coarse, honest hint: short or digits-only is weak; 14+ mixed letters and digits is strong. */
+export function passphraseStrength(p: string): PassphraseStrength {
+  const letters = /[a-z]/i.test(p);
+  const digits = /\d/.test(p);
+  if (p.length < 10 || /^\d+$/.test(p)) return 'weak';
+  if (p.length >= 14 && letters && digits) return 'strong';
+  return 'ok';
+}
 
 export function ProfileScreen({ profile, settings }: { profile: Profile; settings: Settings }) {
   const [mode, setMode] = useState<Mode>('view');
@@ -205,7 +220,8 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
           <div>
-            <span aria-hidden="true">⏳</span> {profile.fasting.enabled ? `${formatTime(profile.fasting.eatStart)} → ${formatTime(profile.fasting.eatEnd)}` : t('common.off')}
+            <span aria-hidden="true">⏳</span>{' '}
+            {profile.fasting.enabled ? `${formatTime(profile.fasting.eatStart)} → ${formatTime(profile.fasting.eatEnd)}` : t('common.off')}
           </div>
           <div>
             <span aria-hidden="true">😴</span> {formatTime(profile.sleep.bedtime)} → {formatTime(profile.sleep.wake)}
@@ -215,7 +231,9 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
           </div>
           <div>
             <span aria-hidden="true">🏋️</span>{' '}
-            {profile.workout.enabled ? `${formatTime(profile.workout.start)}–${formatTime(profile.workout.end)} · ${days(profile.workout.days)}` : t('common.off')}
+            {profile.workout.enabled
+              ? `${formatTime(profile.workout.start)}–${formatTime(profile.workout.end)} · ${days(profile.workout.days)}`
+              : t('common.off')}
             {profile.workout.alarm ? ' ⏰' : ''}
           </div>
           <div className="col-span-2">
@@ -224,7 +242,8 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
           </div>
           {profile.supplements.length > 0 && (
             <div className="col-span-2">
-              <span aria-hidden="true">💊</span> {profile.supplements.map((s) => t('profile.supplementAt', { name: s.name, time: formatTime(s.time) })).join(' · ')}
+              <span aria-hidden="true">💊</span>{' '}
+              {profile.supplements.map((s) => t('profile.supplementAt', { name: s.name, time: formatTime(s.time) })).join(' · ')}
             </div>
           )}
           {u.appearanceGoals && (
@@ -530,7 +549,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         </button>
       </Card>
 
-      <p className="pb-4 text-center text-[11px] text-slate-400">{t('profile.footer')}</p>
+      <AboutCard />
 
       <ConfirmDialog
         open={confirmErase}
@@ -551,6 +570,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         onClose={() => setPinDialog(null)}
         onDone={async (pin) => {
           await enableAppLock(pin);
+          secureScreen(true);
           toast(t('security.pinSet'), 'success');
         }}
       />
@@ -569,6 +589,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         onClose={() => setPinDialog(null)}
         onDone={async () => {
           await disableAppLock();
+          secureScreen(false);
           toast(t('security.lockOff'));
         }}
       />
@@ -594,7 +615,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
             <button
               className="btn-primary"
               onClick={async () => {
-                if (passphrase.length < 6) return toast(t('profile.passphraseShort'), 'error');
+                if (passphrase.length < PASSPHRASE_MIN) return toast(t('profile.passphraseShort'), 'error');
                 try {
                   const ok = await exportBackup(passphrase);
                   if (ok) toast(t('profile.backupSaved'), 'success');
@@ -613,6 +634,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
         <Field label={t('profile.passphrase')} hint={t('profile.passphraseHint')}>
           <input className="input" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoFocus />
         </Field>
+        {passphrase.length > 0 && <PassphraseMeter value={passphrase} />}
       </Modal>
 
       <Modal
@@ -686,6 +708,22 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
           </>
         )}
       </Modal>
+    </div>
+  );
+}
+
+function PassphraseMeter({ value }: { value: string }) {
+  const level = passphraseStrength(value);
+  const tone = level === 'weak' ? 'text-rose-600 dark:text-rose-300' : level === 'ok' ? 'text-amber-700 dark:text-amber-300' : 'text-brand-600';
+  const bar = level === 'weak' ? 'w-1/3 bg-rose-500' : level === 'ok' ? 'w-2/3 bg-amber-500' : 'w-full bg-brand-500';
+  return (
+    <div className="mt-2" data-testid="passphrase-meter" data-level={level}>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+        <div className={`h-full rounded-full transition-all ${bar}`} />
+      </div>
+      <p className={`mt-1 text-xs ${tone}`} role="status">
+        {level === 'weak' ? t('profile.passphraseWeak') : level === 'ok' ? t('profile.passphraseOk') : t('profile.passphraseStrong')}
+      </p>
     </div>
   );
 }

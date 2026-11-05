@@ -25,6 +25,17 @@ describe('profile schema', () => {
     expect(ids[0]).toBe(supplementId({ name: 'Sea buckthorn juice', time: '06:40' }));
   });
 
+  it('tolerates the deprecated privacy.futureLookCloud flag from old files but never keeps it', () => {
+    expect('futureLookCloud' in sample.privacy).toBe(false);
+    const old = { ...sample, privacy: { ...sample.privacy, futureLookCloud: true } };
+    const r = validateProfile(old);
+    expect(r.ok).toBe(true);
+    expect(r.profile?.privacy).toEqual({ photoConsent: true, driveBackup: false });
+    expect(JSON.stringify(r.profile)).not.toContain('futureLookCloud');
+    // and it never shows up as an import change either
+    expect(diffProfiles(sample, r.profile!).some((d) => d.path.includes('futureLookCloud'))).toBe(false);
+  });
+
   it('rejects bad times and unknown fields', () => {
     const bad = { ...sample, fasting: { enabled: true, eatStart: '25:00', eatEnd: '19:00' }, extra: 1 };
     const r = validateProfile(bad);

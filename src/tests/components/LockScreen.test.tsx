@@ -21,8 +21,13 @@ vi.mock('../../db/repos', () => ({
 }));
 vi.mock('../../db/database', () => ({ getDb: vi.fn() }));
 vi.mock('../../services/erase', () => ({ eraseAllData: () => eraseAllData() }));
+const setSecureScreen = vi.fn(async (_o: { enabled: boolean }) => undefined);
 vi.mock('../../native/plugins', () => ({
-  FitBiometric: { isAvailable: vi.fn(async () => ({ available: false, status: 'unavailable' })), authenticate: vi.fn(async () => ({ success: false })) },
+  FitBiometric: {
+    isAvailable: vi.fn(async () => ({ available: false, status: 'unavailable' })),
+    authenticate: vi.fn(async () => ({ success: false })),
+    setSecureScreen: (o: { enabled: boolean }) => setSecureScreen(o),
+  },
 }));
 
 const salt = generateSalt();
@@ -48,6 +53,7 @@ describe('<LockScreen />', () => {
     };
     useLockStore.getState().initialize(true);
     eraseAllData.mockClear();
+    setSecureScreen.mockClear();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -56,6 +62,12 @@ describe('<LockScreen />', () => {
   const type = (pin: string) => {
     for (const d of pin) fireEvent.click(screen.getByRole('button', { name: d }));
   };
+
+  it('turns on screenshot protection as soon as it mounts', async () => {
+    const { LockScreen } = await import('../../screens/LockScreen');
+    render(<LockScreen settings={settings} name="Suresh" />);
+    await waitFor(() => expect(setSecureScreen).toHaveBeenCalledWith({ enabled: true }));
+  });
 
   it('rejects a wrong PIN with attempts left, then unlocks with the right one', async () => {
     const { LockScreen } = await import('../../screens/LockScreen');

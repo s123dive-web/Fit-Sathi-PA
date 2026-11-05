@@ -78,7 +78,12 @@ export interface Profile {
   habits: ProfileHabit[];
   typicalMeals?: TypicalMeals;
   notifications: NotificationPrefs;
-  privacy: { photoConsent: boolean; driveBackup: boolean; futureLookCloud: boolean };
+  privacy: {
+    photoConsent: boolean;
+    driveBackup: boolean;
+    /** @deprecated Removed feature; accepted from old profile files, never written or shown. */
+    futureLookCloud?: boolean;
+  };
   nutritionTargets?: { kcal?: number; proteinG?: number };
   preferences?: { heightUnit?: HeightUnit; weightUnit?: WeightUnit; theme?: Theme };
 }

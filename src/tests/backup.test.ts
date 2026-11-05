@@ -59,7 +59,11 @@ describe('encrypted backup', () => {
   });
 
   it('rejects rows with malformed dates or shapes so a restore cannot crash the next launch', () => {
-    expect(validateRows({ habit_logs: [{ habit_id: 'h', date: '2026-01-05', status: 'done', created_at: '2026-01-05T00:00:00Z', updated_at: '2026-01-05T00:00:00Z' }] })).toBeNull();
+    expect(
+      validateRows({
+        habit_logs: [{ habit_id: 'h', date: '2026-01-05', status: 'done', created_at: '2026-01-05T00:00:00Z', updated_at: '2026-01-05T00:00:00Z' }],
+      }),
+    ).toBeNull();
     expect(validateRows({ habit_logs: [{ habit_id: 'h', date: '', status: 'done' }] })).toMatch(/date/i);
     expect(validateRows({ habit_logs: [{ habit_id: 'h', date: '2026-1-5', status: 'done' }] })).toMatch(/date/i);
     expect(validateRows({ habit_logs: [{ habit_id: 'h', date: '2026-01-05', status: 'nope' }] })).toMatch(/status/i);

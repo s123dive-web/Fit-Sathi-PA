@@ -46,5 +46,5 @@
     "motivational": { "enabled": true, "times": ["08:00", "20:00"] },
     "fastingWarningMinutesBefore": 30
   },
-  "privacy": { "photoConsent": true, "driveBackup": false, "futureLookCloud": false }
+  "privacy": { "photoConsent": true, "driveBackup": false }
 }

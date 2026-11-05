@@ -24,7 +24,15 @@ export type Dump = Record<string, Record<string, unknown>[]>;
  * Settings keys that never leave the device and are never restored: the app-lock state. A 4-digit PIN hash can be
  * brute-forced offline in seconds, and restoring a lock state onto another install would lock the user out.
  */
-export const LOCK_SETTINGS_KEYS: readonly string[] = ['pinHash', 'pinSalt', 'appLockEnabled', 'biometricEnabled', 'failedAttempts', 'lockoutUntil', 'lastFailedAt'];
+export const LOCK_SETTINGS_KEYS: readonly string[] = [
+  'pinHash',
+  'pinSalt',
+  'appLockEnabled',
+  'biometricEnabled',
+  'failedAttempts',
+  'lockoutUntil',
+  'lastFailedAt',
+];
 
 export function stripLockSettings(dump: Dump): Dump {
   const out: Dump = { ...dump };
@@ -103,7 +111,8 @@ export function validateRows(tables: Dump): string | null {
         }
         if (v !== null && typeof v === 'object') return t('backup.badValue', { table: name, row: i + 1, column: col });
       }
-      if (name === 'habit_logs' && !['done', 'skip', 'miss'].includes(String(row.status))) return t('backup.badValue', { table: name, row: i + 1, column: 'status' });
+      if (name === 'habit_logs' && !['done', 'skip', 'miss'].includes(String(row.status)))
+        return t('backup.badValue', { table: name, row: i + 1, column: 'status' });
       if (name === 'habits' && typeof row.created_at === 'string' && !ISO_DATE.test(row.created_at.slice(0, 10))) {
         return t('backup.badDate', { table: name, row: i + 1, column: 'created_at' });
       }
@@ -151,7 +160,18 @@ export async function restoreTables(tables: Dump): Promise<void> {
   notifyChange();
 }
 
-const SUMMARY_TABLES: TableName[] = ['habits', 'habit_logs', 'supplement_logs', 'water_logs', 'weight_logs', 'meal_logs', 'photos', 'food_items', 'weekly_summaries', 'points_ledger'];
+const SUMMARY_TABLES: TableName[] = [
+  'habits',
+  'habit_logs',
+  'supplement_logs',
+  'water_logs',
+  'weight_logs',
+  'meal_logs',
+  'photos',
+  'food_items',
+  'weekly_summaries',
+  'points_ledger',
+];
 
 export function summarizeTables(tables: Dump): { label: string; count: number }[] {
   return SUMMARY_TABLES.map((k) => ({ label: t(`backup.tables.${k}`), count: tables[k]?.length ?? 0 }));

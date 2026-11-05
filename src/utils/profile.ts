@@ -71,6 +71,7 @@ export function normalizeProfile(input: Profile): Profile {
   if (p.user.city === '') delete p.user.city;
   if (p.user.cuisine === '') delete p.user.cuisine;
   if (p.workout.location === '') delete p.workout.location;
+  delete p.privacy.futureLookCloud; // deprecated: tolerated on input, never persisted or shown
   if (p.nutritionTargets) {
     if (!p.nutritionTargets.kcal) delete p.nutritionTargets.kcal;
     if (!p.nutritionTargets.proteinG) delete p.nutritionTargets.proteinG;
@@ -213,7 +214,7 @@ export function emptyProfile(): Profile {
       fastingWindow: true,
       pinnedChecklist: true,
     },
-    privacy: { photoConsent: false, driveBackup: false, futureLookCloud: false },
+    privacy: { photoConsent: false, driveBackup: false },
     preferences: { heightUnit: 'cm', weightUnit: 'kg', theme: 'system' },
   };
 }

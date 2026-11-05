@@ -6,6 +6,7 @@ import type { Habit, Profile, Settings } from '../../types';
 import { validateProfile } from '../../utils/profile';
 import { formatTime } from '../../utils/dates';
 import { t } from '../../i18n';
+import { Overlays } from '../../components/ui';
 
 const setHabitStatus = vi.fn(async (..._a: unknown[]) => undefined);
 const toggleSupplement = vi.fn(async (..._a: unknown[]) => undefined);
@@ -19,9 +20,11 @@ vi.mock('../../services/actions', () => ({
   undoWater: vi.fn(async () => undefined),
   logWeight: (...a: unknown[]) => logWeight(...a),
 }));
+const disableHealthConnect = vi.fn(async () => undefined);
 vi.mock('../../services/health', () => ({
   refreshSteps: vi.fn(async () => ({ steps: null, status: 'disabled' })),
   enableHealthConnect: vi.fn(async () => ({ steps: null, status: 'unsupported' })),
+  disableHealthConnect: () => disableHealthConnect(),
 }));
 
 const habit: Habit = {
@@ -86,6 +89,28 @@ describe('<Today />', () => {
     logWeight.mockClear();
     habitAll.mockReset();
     habitAll.mockResolvedValue([habit]);
+  });
+
+  it('Health Connect card: read-only copy, and "Manage" disconnects when it is on', async () => {
+    const { Today } = await import('../../screens/Today');
+    const { rerender } = render(
+      <>
+        <Today profile={profile} settings={settings} onOpenHabits={() => undefined} />
+        <Overlays />
+      </>,
+    );
+    await screen.findByText(/45-min home workout/);
+    expect(screen.getByText(t('today.stepsConnect'))).toHaveTextContent(/read-only/i);
+    expect(screen.queryByRole('button', { name: t('today.manageHealthConnect') })).toBeNull();
+    rerender(
+      <>
+        <Today profile={profile} settings={{ ...settings, healthConnectEnabled: true }} onOpenHabits={() => undefined} />
+        <Overlays />
+      </>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: t('today.manageHealthConnect') }));
+    await waitFor(() => expect(disableHealthConnect).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(t('today.stepsDisconnected'))).toBeInTheDocument();
   });
 
   it('renders habits, supplements, water, weight, fasting timer and XP', async () => {

@@ -1,8 +1,7 @@
 {
   "app": {
     "name": "FitSaathi",
-    "tagline": "Your offline fitness & habit companion",
-    "offlineNote": "Everything stays on this phone. No account, no cloud."
+    "tagline": "Your offline fitness & habit companion"
   },
   "nav": {
     "today": "Today",
@@ -65,7 +64,8 @@
     "createHabits": "Create habits from this profile",
     "start": "Start",
     "fix": "Please fix:",
-    "welcome": "Welcome, {name}! 🎉"
+    "welcome": "Welcome, {name}! 🎉",
+    "privacyNote": "Everything you enter stays on this phone — no account, no analytics, no servers."
   },
   "import": {
     "title": "Profile JSON",
@@ -134,8 +134,7 @@
       },
       "privacy": {
         "photoConsent": "Progress photos",
-        "driveBackup": "Google Drive backup",
-        "futureLookCloud": "AI future look (cloud)"
+        "driveBackup": "Google Drive backup"
       },
       "nutritionTargets": {
         "kcal": "Calorie target",
@@ -188,12 +187,12 @@
     "eatingWindow": "Eating window",
     "eatingOpens": "Eating opens at {time}",
     "eatingCloses": "Eating window closes at {time}",
-    "stepsConnect": "Connect Health Connect to show today's steps (read-only).",
+    "stepsConnect": "Connect Health Connect to show today's steps. Read-only: the count is stored on this device only.",
     "stepsNotInstalled": "Health Connect is not installed on this device.",
     "stepsUpdate": "Health Connect needs an update.",
     "stepsUnsupported": "Steps are not available on this platform.",
     "stepsDenied": "Permission not granted. Steps stay hidden until you allow it.",
-    "stepsFrom": "From Health Connect",
+    "stepsFrom": "From Health Connect · read-only, stored on this device",
     "connect": "Connect",
     "waterTarget": "Water target reached! 💧",
     "milestone": "{n}-day streak! 🎉",
@@ -212,7 +211,9 @@
     "weightSaved": "Weight saved",
     "noStreakSupplement": "No streak yet",
     "alarmOn": "alarm",
-    "quickActions": "Quick actions"
+    "quickActions": "Quick actions",
+    "manageHealthConnect": "Manage in Health Connect",
+    "stepsDisconnected": "Steps disconnected. To revoke access fully, open Health Connect → App permissions → FitSaathi."
   },
   "habits": {
     "title": "Habits",
@@ -327,7 +328,8 @@
     "logFailed": "Could not log the meal: {msg}",
     "macroNegative": "Must be 0 or more",
     "windowRange": "{start}–{end}",
-    "macroRest": "P {p} g · C {c} g · F {f} g"
+    "macroRest": "P {p} g · C {c} g · F {f} g",
+    "disclaimer": "Calorie and protein targets are general estimates, not medical advice. Consult a doctor before changing your diet."
   },
   "progress": {
     "title": "Progress",
@@ -364,14 +366,9 @@
     "futureKeepLogging": "Keep logging weight and photos — a text projection appears once a trend is visible.",
     "yourGoal": "Your goal: “{goal}”",
     "photoTimeline": "Photo timeline: {n} photos from {from} to {to}. Open the Photos tab to compare.",
-    "cloudTitle": "AI future look (coming later)",
-    "cloudBody": "Coming later — nothing is sent anywhere in this version. This only records your preference.",
-    "cloudConfirm": "This would upload a progress photo to a cloud image service when the feature ships. Enable the preference?",
-    "cloudOn": "Cloud future-look preference saved (feature not yet active)",
-    "cloudOff": "Cloud future-look stays off",
     "photosTitle": "Progress photos",
-    "photosNote": "Encrypted with a device key and stored in app-private storage. They never leave this phone and are not included in backups.",
-    "consentOff": "Photo consent is off. Turn it on in Profile to take progress photos.",
+    "photosNote": "Photos are encrypted with a device key and stored in app-private storage on this phone. They are never uploaded anywhere and are not included in backups.",
+    "consentOff": "Photo consent is off. Tap “Take photo” to review and allow progress photos.",
     "noteHint": "Note (optional, e.g. morning, after workout)",
     "takePhoto": "📷 Take photo",
     "gallery": "Gallery",
@@ -385,7 +382,6 @@
     "compareAgainst": "Compare “now” against",
     "deletePhoto": "Delete this photo permanently?",
     "photoSaved": "Photo saved (encrypted, on-device)",
-    "consentFirst": "Enable photo consent in Profile first",
     "captureFailed": "Could not capture: {msg}",
     "seriesWeight": "Weight",
     "seriesMa7": "7-day avg",
@@ -397,7 +393,12 @@
     "weeksCompare": "{a} vs {b} weeks",
     "deletePhotoTitle": "Delete this photo?",
     "deletePhotoBody": "The encrypted file is removed from this phone. There is no undo.",
-    "weeklyLine": "{habits}% · {water} L · {workouts} workouts · {delta}"
+    "weeklyLine": "{habits}% · {water} L · {workouts} workouts · {delta}",
+    "consentTitle": "Allow progress photos?",
+    "consentBody": "Progress photos are encrypted with a key that never leaves this device and are stored in the app's private storage. They are never uploaded, never shared and not included in backups. You can turn this off any time in Profile.",
+    "consentAllow": "Allow",
+    "consentSaved": "Progress photos enabled",
+    "disclaimer": "Projections are rough estimates based on your logged weights, not medical advice."
   },
   "profile": {
     "title": "Profile",
@@ -453,8 +454,8 @@
     "backupFailed": "Backup failed: {msg}",
     "restored": "Backup restored",
     "passphrase": "Backup passphrase",
-    "passphraseHint": "At least 6 characters. You will need it to restore.",
-    "passphraseShort": "Passphrase must be at least 6 characters",
+    "passphraseHint": "At least 8 characters. You will need it to restore.",
+    "passphraseShort": "Passphrase must be at least 8 characters",
     "wrongPassphrase": "Wrong passphrase or corrupted backup",
     "restoreTitle": "Restore backup?",
     "restoreBody": "Exported {when}. This will replace everything currently on this device.",
@@ -462,7 +463,6 @@
     "danger": "Danger zone",
     "erase": "Erase all data",
     "eraseConfirm": "Erase ALL data on this device (profile, habits, logs, photos metadata)? This cannot be undone.",
-    "footer": "FitSaathi · offline-first · no accounts, no analytics",
     "driveBackup": "Google Drive backup",
     "driveHint": "Lets you pick Drive as the destination in the file picker",
     "advanced": "Advanced",
@@ -474,7 +474,10 @@
     "fastingOffHint": "Turn on intermittent fasting in your profile to get these notifications.",
     "exportFailed": "Export failed: {msg}",
     "restoreFailed": "Could not open that backup: {msg}",
-    "supplementAt": "{name} {time}"
+    "supplementAt": "{name} {time}",
+    "passphraseWeak": "Weak — use 10+ characters with letters and digits",
+    "passphraseOk": "OK — 14+ characters with letters and digits is stronger",
+    "passphraseStrong": "Strong"
   },
   "form": {
     "about": "About you",
@@ -669,5 +672,13 @@
       "weekly_summaries": "Weekly summaries",
       "points_ledger": "XP entries"
     }
+  },
+  "about": {
+    "title": "About",
+    "version": "{name} v{version}",
+    "local": "All data stays on this device. No account, no analytics, no servers.",
+    "privacyPolicy": "Privacy policy",
+    "source": "Open-source licenses / source",
+    "disclaimer": "FitSaathi is a habit and wellness tracker, not a medical device. Calorie, protein and fasting targets are general estimates. Consult a doctor before changing your diet, fasting or exercise, especially if you have a medical condition."
   }
 }
