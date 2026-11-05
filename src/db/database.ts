@@ -179,6 +179,24 @@ async function migrate(conn: SQLiteDBConnection): Promise<void> {
   }
 }
 
+/**
+ * At-rest encryption (Android): the database is a SQLCipher file. The passphrase is a random 256-bit value generated
+ * once on this device and kept by the plugin in EncryptedSharedPreferences (Android Keystore backed); it never leaves
+ * the device and is not part of backups. A database created by an older, unencrypted build is converted in place on
+ * first open (mode "encryption"), afterwards it is opened with mode "secret".
+ */
+async function nativeEncryptionMode(sqlite: SQLiteConnection): Promise<'secret' | 'encryption'> {
+  if (!(await sqlite.isSecretStored()).result) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const secret = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    await sqlite.setEncryptionSecret(secret);
+  }
+  const exists = (await sqlite.isDatabase(DB_NAME)).result;
+  if (!exists) return 'secret';
+  const encrypted = (await sqlite.isDatabaseEncrypted(DB_NAME)).result;
+  return encrypted ? 'secret' : 'encryption';
+}
+
 async function openDb(): Promise<Db> {
   const isWeb = Capacitor.getPlatform() === 'web';
   const sqlite = new SQLiteConnection(CapacitorSQLite);
@@ -195,10 +213,14 @@ async function openDb(): Promise<Db> {
 
   const consistency = await sqlite.checkConnectionsConsistency();
   const isConn = (await sqlite.isConnection(DB_NAME, false)).result;
-  const conn =
-    consistency.result && isConn
-      ? await sqlite.retrieveConnection(DB_NAME, false)
-      : await sqlite.createConnection(DB_NAME, false, 'no-encryption', CURRENT_SCHEMA_VERSION, false);
+  let conn: SQLiteDBConnection;
+  if (consistency.result && isConn) {
+    conn = await sqlite.retrieveConnection(DB_NAME, false);
+  } else if (isWeb) {
+    conn = await sqlite.createConnection(DB_NAME, false, 'no-encryption', CURRENT_SCHEMA_VERSION, false);
+  } else {
+    conn = await sqlite.createConnection(DB_NAME, true, await nativeEncryptionMode(sqlite), CURRENT_SCHEMA_VERSION, false);
+  }
   await conn.open();
   await migrate(conn);
   const db = new SqliteDb(conn, sqlite, isWeb);

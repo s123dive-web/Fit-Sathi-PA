@@ -16,7 +16,7 @@ const Progress = lazy(() => import('./screens/Progress').then((m) => ({ default:
 import { ProfileScreen } from './screens/ProfileScreen';
 import { ensureWeeklySummaries } from './services/weekly';
 import { applyNativeAction, consumePendingActions, syncNative } from './services/sync';
-import { FitAlarms } from './native/plugins';
+import { FitAlarms, FitBiometric } from './native/plugins';
 import { refreshSteps } from './services/health';
 import { todayISO } from './utils/dates';
 import { notifyChange, toast } from './store/appStore';
@@ -64,6 +64,8 @@ export default function App() {
         setSettings(s);
         applyTheme(s.theme);
         useLockStore.getState().initialize(s.onboarded && s.appLockEnabled);
+        // Block screenshots / recents thumbnails while the app lock is on (FLAG_SECURE on Android).
+        FitBiometric.setSecureScreen({ enabled: s.appLockEnabled }).catch(() => undefined);
         setReady(true);
         if (s.onboarded) await onForeground();
       } catch (e) {
