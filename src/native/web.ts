@@ -257,4 +257,7 @@ export class FitBiometricWeb extends WebPlugin implements FitBiometricPlugin {
   async authenticate() {
     return { success: false, reason: 'unavailable' };
   }
+  async setSecureScreen(_options: { enabled: boolean }) {
+    /* no screenshot protection on web */
+  }
 }

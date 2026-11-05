@@ -128,6 +128,11 @@ export interface FitBiometricPlugin {
   isAvailable(): Promise<{ available: boolean; status: BiometricStatus }>;
   /** Shows the system fingerprint / face prompt. Resolves { success: false, reason } on cancel or failure. */
   authenticate(options: { title: string; subtitle?: string; negativeButton?: string }): Promise<{ success: boolean; reason?: string }>;
+  /**
+   * Toggle FLAG_SECURE on the activity window: blocks screenshots, screen recording and the recents thumbnail.
+   * Used while the app lock is enabled and while progress photos are on screen. No-op on web.
+   */
+  setSecureScreen(options: { enabled: boolean }): Promise<void>;
 }
 
 export const FitBiometric = registerPlugin<FitBiometricPlugin>('FitBiometric', {
