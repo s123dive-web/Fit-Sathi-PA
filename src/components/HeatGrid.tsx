@@ -10,12 +10,18 @@ export function HeatGrid({
   weeks = 16,
   color = '#22a566',
   scheduled,
+  unscheduledLabel,
+  onPick,
 }: {
   logs: HabitLog[];
   today: ISODate;
   weeks?: number;
   color?: string;
   scheduled?: (d: ISODate) => boolean;
+  /** Label for an unlogged day that is not scheduled (default "not scheduled"). */
+  unscheduledLabel?: string;
+  /** Called when a past or current day is tapped, e.g. to log that day. */
+  onPick?: (d: ISODate) => void;
 }) {
   const [picked, setPicked] = useState<ISODate | null>(null);
   const byDate = new Map<ISODate, HabitStatus>();
@@ -39,7 +45,7 @@ export function HeatGrid({
         : st
           ? t(`habits.legend${st === 'done' ? 'Done' : st === 'skip' ? 'Skipped' : 'Missed'}`)
           : !isSched
-            ? t('habits.notScheduled')
+            ? (unscheduledLabel ?? t('habits.notScheduled'))
             : d < today
               ? t('habits.legendMissed')
               : t('habits.noLog');
@@ -79,7 +85,10 @@ export function HeatGrid({
                   aria-label={describe(d)}
                   aria-pressed={picked === d}
                   title={describe(d)}
-                  onClick={() => setPicked((p) => (p === d ? null : d))}
+                  onClick={() => {
+                    setPicked((p) => (p === d ? null : d));
+                    if (!future) onPick?.(d);
+                  }}
                   className={`h-3 w-3 rounded-[3px] ${cls} ${d === today ? 'ring-1 ring-slate-400' : ''} ${picked === d ? 'ring-2 ring-brand-500' : ''}`}
                   style={style}
                 />

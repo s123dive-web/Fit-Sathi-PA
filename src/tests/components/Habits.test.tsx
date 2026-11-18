@@ -10,6 +10,8 @@ import { useAppStore } from '../../store/appStore';
 
 const upsert = vi.fn(async (_h: Habit) => undefined);
 const remove = vi.fn(async (_id: string) => undefined);
+const setCreatedAt = vi.fn(async (_id: string, _date: string) => undefined);
+const setHabitStatus = vi.fn(async (..._args: unknown[]) => undefined);
 let habits: Habit[] = [];
 
 vi.mock('../../db/repos', () => ({
@@ -18,9 +20,10 @@ vi.mock('../../db/repos', () => ({
     allLogs: vi.fn(async () => []),
     upsert: (h: Habit) => upsert(h),
     remove: (id: string) => remove(id),
+    setCreatedAt: (id: string, date: string) => setCreatedAt(id, date),
   },
 }));
-vi.mock('../../services/actions', () => ({ setHabitStatus: vi.fn(async () => undefined) }));
+vi.mock('../../services/actions', () => ({ setHabitStatus: (...args: unknown[]) => setHabitStatus(...args) }));
 vi.mock('../../services/sync', () => ({ syncNative: vi.fn(async () => undefined) }));
 
 const walk: Habit = {
@@ -104,5 +107,24 @@ describe('<Habits />', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: t('common.discardTitle') })).toBeNull());
     expect(dialog).toBeInTheDocument();
     expect((screen.getByPlaceholderText(t('habits.namePlaceholder')) as HTMLInputElement).value).toBe('Read 10 pages');
+  });
+
+  it('logs a day before the habit was created by moving its start date back', async () => {
+    habits = [{ ...walk, createdAt: '2026-03-10' }];
+    setCreatedAt.mockClear();
+    setHabitStatus.mockClear();
+    const { Habits } = await import('../../screens/Habits');
+    render(
+      <>
+        <Habits profile={profile} />
+        <Overlays />
+      </>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Evening walk/ }));
+    fireEvent.change(await screen.findByLabelText(t('habits.logPast')), { target: { value: '2026-03-01' } });
+    expect(screen.getByText(/before the habit's start date/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t('common.done')) }));
+    await waitFor(() => expect(setCreatedAt).toHaveBeenCalledWith('h_walk', '2026-03-01'));
+    await waitFor(() => expect(setHabitStatus).toHaveBeenCalledWith('h_walk', '2026-03-01', 'done', expect.objectContaining({ silent: true })));
   });
 });

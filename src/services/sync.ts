@@ -2,7 +2,7 @@ import type { Habit, ISODate, PendingNativeAction, Profile } from '../types';
 import { alarmRepo, habitRepo, notificationLogRepo, pointsRepo, profileRepo, settingsRepo, supplementRepo, waterRepo, weightRepo } from '../db/repos';
 import { addDays, dayNamesToWeekdays, hhmmToMinutes, parseHHMM, todayISO, weekStart } from '../utils/dates';
 import { fastingWarningTime } from '../utils/fasting';
-import { habitActiveOn } from '../utils/schedule';
+import { habitDueOn } from '../utils/schedule';
 import { completionStats, computeStreaks } from '../utils/habitStrength';
 import { goalDirection, projectToTarget } from '../utils/projection';
 import { pickQuotes, QUOTES, renderQuote, type QuoteContext } from '../utils/quotes';
@@ -290,16 +290,24 @@ export async function syncNative(): Promise<void> {
     const [profile, settings, habits] = await Promise.all([profileRepo.get(), settingsRepo.get(), habitRepo.all()]);
     if (!profile || !settings.onboarded) return;
     const today = todayISO();
-    const [logs, supLogs, water, xpToday] = await Promise.all([
-      habitRepo.logsBetween(today, today),
+    const [weekLogs, supLogs, water, xpToday] = await Promise.all([
+      habitRepo.logsBetween(weekStart(today), today),
       supplementRepo.logsOn(today),
       waterRepo.totalOn(today),
       pointsRepo.totalOn(today),
     ]);
+    const logs = weekLogs.filter((l) => l.date === today);
     const doneHabits = new Set(logs.filter((l) => l.status === 'done' || l.status === 'skip').map((l) => l.habitId));
     const doneSups = new Set(supLogs.map((l) => l.supplementId));
 
-    const todaysHabits = habits.filter((h) => habitActiveOn(h, today));
+    // Weekly habits that already met this week's target drop off the widget / notification.
+    const todaysHabits = habits.filter((h) =>
+      habitDueOn(
+        h,
+        weekLogs.filter((l) => l.habitId === h.id),
+        today,
+      ),
+    );
     const pinned: PinnedItem[] = [
       ...todaysHabits.filter((h) => h.pinned).map((h) => ({ id: h.id, kind: 'habit' as const, title: `${h.emoji} ${h.name}`, done: doneHabits.has(h.id) })),
       ...profile.supplements.map((s) => ({ id: s.id, kind: 'supplement' as const, title: `💊 ${s.name}`, done: doneSups.has(s.id) })),

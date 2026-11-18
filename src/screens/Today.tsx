@@ -4,7 +4,7 @@ import { habitRepo, pointsRepo, stepsRepo, supplementRepo, waterRepo, weightRepo
 import { toast, useAsyncData, usePendingActions } from '../store/appStore';
 import { Card, ErrorCard, Modal, ProgressRing, Spinner, TickButton, eventAnchor } from '../components/ui';
 import { addDays, formatDateLong, formatDuration, formatTime, todayISO } from '../utils/dates';
-import { habitActiveOn } from '../utils/schedule';
+import { habitActiveOn, weekProgress } from '../utils/schedule';
 import { computeStreaks } from '../utils/habitStrength';
 import { fastingState } from '../utils/fasting';
 import { levelFromXp } from '../utils/xp';
@@ -99,9 +99,22 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
     return data.supLogs.some((l) => l.supplementId === id);
   };
   const waterMl = (pending.get('water') as number | undefined) ?? data.water;
+  // "N× per week" habits: show the week's count, and once the target is met stop counting them as open today.
+  const weekOf = (h: Habit) => {
+    const wp = weekProgress(
+      h.schedule,
+      data.recentLogs.filter((l) => l.habitId === h.id && l.date !== today),
+      today,
+    );
+    if (!wp) return null;
+    const done = wp.done + (statusOf(h.id) === 'done' ? 1 : 0);
+    return { done, target: wp.target, met: done >= wp.target };
+  };
+  const weeks = new Map(data.habits.map((h) => [h.id, weekOf(h)]));
+  const restingCount = data.habits.filter((h) => weeks.get(h.id)?.met && statusOf(h.id) === null).length;
   const doneCount = data.habits.filter((h) => statusOf(h.id) === 'done').length;
   const skipCount = data.habits.filter((h) => statusOf(h.id) === 'skip').length;
-  const denom = Math.max(1, data.habits.length - skipCount);
+  const denom = data.habits.length - skipCount - restingCount;
   const level = levelFromXp(data.xpTotal);
   const firstName = profile.user.name.split(' ')[0];
 
@@ -155,13 +168,13 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
             ) : (
               <>
                 <div className="mb-3 flex items-center gap-3">
-                  <ProgressRing value={doneCount / denom} size={52} stroke={6}>
+                  <ProgressRing value={denom > 0 ? doneCount / denom : 1} size={52} stroke={6}>
                     <span className="text-xs font-semibold">
                       {doneCount}/{denom}
                     </span>
                   </ProgressRing>
                   <div className="text-sm text-slate-500">
-                    {doneCount === denom
+                    {doneCount >= denom
                       ? t('today.allDone')
                       : `${t('today.toGo', { n: denom - doneCount })}${skipCount ? ` · ${t('today.skipped', { n: skipCount })}` : ''}`}
                   </div>
@@ -171,8 +184,10 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
                     const st = statusOf(h.id);
                     const streak = streaks.get(h.id);
                     const busy = pending.has(`habit:${h.id}`);
+                    const wk = weeks.get(h.id);
+                    const resting = !!wk?.met && st === null;
                     return (
-                      <li key={h.id} className="flex items-center gap-3 py-2" data-testid={`habit-${h.id}`}>
+                      <li key={h.id} className={`flex items-center gap-3 py-2 ${resting ? 'opacity-60' : ''}`} data-testid={`habit-${h.id}`}>
                         <TickButton
                           done={st === 'done'}
                           color={h.color}
@@ -188,6 +203,7 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
                             {streak && streak.current > 0
                               ? t(streak.unit === 'days' ? 'today.streakDays' : 'today.streakWeeks', { n: streak.current })
                               : t('today.noStreak')}
+                            {wk ? ` · ${t(wk.met ? 'today.weekMet' : 'today.weekProgress', { done: wk.done, target: wk.target })}` : ''}
                             {h.reminderEnabled && h.reminderTime ? ` · ⏰ ${formatTime(h.reminderTime)}` : ''}
                             {st === 'skip' ? ` · ${t('today.skippedRest')}` : st === 'miss' ? ` · ${t('today.missed')}` : ''}
                           </div>

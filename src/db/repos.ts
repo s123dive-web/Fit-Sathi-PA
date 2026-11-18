@@ -235,6 +235,11 @@ export const habitRepo = {
       ],
     );
   },
+  /** Move the habit's start date (the first day statistics count from). */
+  async setCreatedAt(id: string, date: ISODate): Promise<void> {
+    const db = await getDb();
+    await db.run(`UPDATE habits SET created_at = ?, updated_at = ? WHERE id = ?`, [date, nowIso(), id]);
+  },
   /** Hard delete: removes the habit, its history and every XP entry it earned (habit + milestone bonuses). */
   async remove(id: string): Promise<void> {
     const db = await getDb();

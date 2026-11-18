@@ -5,8 +5,8 @@ import { notifyChange, toast, useAsyncData, usePendingActions } from '../store/a
 import { t, tn } from '../i18n';
 import { Card, ConfirmDialog, EmptyState, ErrorCard, Field, Modal, Spinner, Stat, TimeInput, Toggle, WeekdayPicker } from '../components/ui';
 import { HeatGrid } from '../components/HeatGrid';
-import { addDays, formatTime, todayISO } from '../utils/dates';
-import { describeSchedule, isScheduledOn } from '../utils/schedule';
+import { addDays, formatDateShort, formatTime, todayISO } from '../utils/dates';
+import { describeSchedule, isScheduledOn, weekProgress } from '../utils/schedule';
 import { completionStats, computeStreaks, computeStrength } from '../utils/habitStrength';
 import { newId } from '../utils/ids';
 import { setHabitStatus } from '../services/actions';
@@ -60,13 +60,22 @@ export function Habits({ profile }: { profile: Profile }) {
       if (arr) arr.push(l);
       else logsByHabit.set(l.habitId, [l]);
     }
-    const stats = new Map<string, { strength: ReturnType<typeof computeStrength>; streak: ReturnType<typeof computeStreaks>; today: HabitStatus | null }>();
+    const stats = new Map<
+      string,
+      {
+        strength: ReturnType<typeof computeStrength>;
+        streak: ReturnType<typeof computeStreaks>;
+        today: HabitStatus | null;
+        week: ReturnType<typeof weekProgress>;
+      }
+    >();
     for (const h of data.habits) {
       const logs = logsByHabit.get(h.id) ?? [];
       stats.set(h.id, {
         strength: computeStrength(h.schedule, logs, h.createdAt, today),
         streak: computeStreaks(h.schedule, logs, h.createdAt, today),
         today: logs.find((l) => l.date === today)?.status ?? null,
+        week: weekProgress(h.schedule, logs, today),
       });
     }
     return { logsByHabit, stats };
@@ -146,19 +155,25 @@ export function Habits({ profile }: { profile: Profile }) {
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
                   <div className="h-full rounded-full" style={{ width: `${s.strength.percent}%`, background: h.color }} />
                 </div>
-                {scheduledToday && (
+                {s.week ? (
                   <div className="mt-2 text-[11px] text-slate-500">
-                    {t('habits.todayStatus', {
-                      status:
-                        s.today === 'done'
-                          ? `✅ ${t('common.done')}`
-                          : s.today === 'skip'
-                            ? `⏭ ${t('habits.legendSkipped')}`
-                            : s.today === 'miss'
-                              ? `❌ ${t('habits.legendMissed')}`
-                              : t('habits.pending'),
-                    })}
+                    {t(s.week.met ? 'habits.weekMet' : 'habits.weekProgress', { done: s.week.done, target: s.week.target })}
                   </div>
+                ) : (
+                  scheduledToday && (
+                    <div className="mt-2 text-[11px] text-slate-500">
+                      {t('habits.todayStatus', {
+                        status:
+                          s.today === 'done'
+                            ? `✅ ${t('common.done')}`
+                            : s.today === 'skip'
+                              ? `⏭ ${t('habits.legendSkipped')}`
+                              : s.today === 'miss'
+                                ? `❌ ${t('habits.legendMissed')}`
+                                : t('habits.pending'),
+                      })}
+                    </div>
+                  )
                 )}
               </button>
             </li>
@@ -258,8 +273,18 @@ function HabitDetail({
   const busy = pending.has(`day:${day}`);
   const unitLabel = stats.streak.unit === 'days' ? t('habits.unitDays') : t('habits.unitWeeks');
 
+  const weekly = habit.schedule.type === 'times_per_week';
+  const week = weekProgress(habit.schedule, logs, today);
+
   const setDay2 = (s: HabitStatus | null) =>
-    void pending.run(`day:${day}`, s, () => setHabitStatus(habit.id, day, s, s === 'done' ? { xp: habit.xp, silent: day !== today } : { silent: true }));
+    void pending.run(`day:${day}`, s, async () => {
+      // Logging a day before the habit existed moves its start date back so the entry counts.
+      if (s !== null && day < habit.createdAt) {
+        await habitRepo.setCreatedAt(habit.id, day);
+        toast(t('habits.startMoved', { date: formatDateShort(day) }));
+      }
+      await setHabitStatus(habit.id, day, s, s === 'done' ? { xp: habit.xp, silent: day !== today } : { silent: true });
+    });
 
   return (
     <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
@@ -294,7 +319,19 @@ function HabitDetail({
       </div>
 
       <Card title={t('habits.history')}>
-        <HeatGrid logs={logs} today={today} color={habit.color} scheduled={(d) => d >= habit.createdAt && isScheduledOn(habit.schedule, d)} />
+        {week && (
+          <p className="mb-2 text-xs text-slate-500">{t(week.met ? 'habits.weekMet' : 'habits.weekProgress', { done: week.done, target: week.target })}</p>
+        )}
+        <HeatGrid
+          logs={logs}
+          today={today}
+          color={habit.color}
+          // A weekly habit has no fixed days: an empty day is free, not a miss. The week total decides.
+          scheduled={(d) => !weekly && d >= habit.createdAt && isScheduledOn(habit.schedule, d)}
+          unscheduledLabel={weekly ? t('habits.flexDay') : undefined}
+          onPick={setDay}
+        />
+        <p className="mt-1 text-[11px] text-slate-400">{t('habits.tapToLog')}</p>
         <div className="mt-2 flex gap-3 text-[11px] text-slate-500">
           <span className="flex items-center gap-1">
             <i className="inline-block h-3 w-3 rounded-[3px]" style={{ background: habit.color }} aria-hidden="true" /> {t('habits.legendDone')}
@@ -315,11 +352,13 @@ function HabitDetail({
             className="input"
             value={day}
             max={today}
-            min={habit.createdAt}
             aria-label={t('habits.logPast')}
             onChange={(e) => e.target.value && setDay(e.target.value)}
           />
         </div>
+        {day < habit.createdAt && (
+          <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">{t('habits.beforeStart', { date: formatDateShort(habit.createdAt) })}</p>
+        )}
         <div className="mt-3 grid grid-cols-4 gap-2">
           {(['done', 'skip', 'miss'] as HabitStatus[]).map((s) => (
             <button
@@ -431,6 +470,8 @@ function HabitEditor({
     setSaving(true);
     try {
       await habitRepo.upsert({ ...draft, name: draft.name.trim(), xp: xpNum });
+      // upsert never rewrites created_at of an existing row; the start date is changed explicitly.
+      if (habit && draft.createdAt !== habit.createdAt) await habitRepo.setCreatedAt(habit.id, draft.createdAt);
       notifyChange();
       void syncNative();
       onClose();
@@ -554,6 +595,17 @@ function HabitEditor({
               <WeekdayPicker value={draft.schedule.weekdays ?? []} onChange={(weekdays) => set({ schedule: { type: 'weekdays', weekdays } })} />
             </div>
           )}
+        </Field>
+        <Field label={t('habits.startDate')}>
+          <input
+            type="date"
+            className="input"
+            value={draft.createdAt}
+            max={todayISO()}
+            aria-label={t('habits.startDate')}
+            onChange={(e) => e.target.value && e.target.value <= todayISO() && set({ createdAt: e.target.value })}
+          />
+          <p className="mt-1 text-[11px] text-slate-400">{t('habits.startDateHint')}</p>
         </Field>
         <div className="flex items-center justify-between">
           <span className="text-sm">{t('habits.reminder')}</span>
