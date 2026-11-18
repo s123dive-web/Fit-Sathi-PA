@@ -676,6 +676,11 @@
   "about": {
     "title": "About",
     "version": "{name} v{version}",
+    "build": "(build {build})",
+    "updateTitle": "App updates",
+    "updateHelp": "Download the newest APK and open it. Android installs it over this app as an update, so your habits, logs, photos and settings stay in place.",
+    "updateCta": "Get the latest version",
+    "updateWarning": "Do not uninstall the app first: uninstalling erases its data. If Android says the update cannot be installed, make a backup (Profile → Backup) before trying anything else.",
     "local": "All data stays on this device. No account, no analytics, no servers.",
     "privacyPolicy": "Privacy policy",
     "source": "Open-source licenses / source",

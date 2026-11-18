@@ -71,6 +71,14 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: Build ${{ github.run_number }}
+          make_latest: true
+          body: |
+            FitSaathi ${{ env.VERSION_NAME }} (versionCode ${{ env.VERSION_CODE }})
+
+            **Updating an existing install (keeps your data):** download `app-release.apk` on the phone and open it.
+            Android shows "Update"; habits, logs, photos and settings are preserved. Do **not** uninstall first,
+            because uninstalling erases the app's data. If you originally installed `app-debug.apk`, either file works
+            as long as the signing key has not changed (see README, "Updating the app").
           files: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk

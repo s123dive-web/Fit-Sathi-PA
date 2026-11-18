@@ -203,6 +203,26 @@ the stored hash is ever missing while the lock is on, only _Forgot PIN?_ (erase)
 cooldowns (30 s after 5, 5 min after 8, 30 min after 10). There is no account, so _Forgot PIN?_ can only erase
 the device data and start again (a backup can be restored afterwards).
 
+## Updating the app
+
+Every push to `main` publishes a new `build-N` release with a higher `versionCode`, so a newer APK always installs
+**over** the existing app and keeps its data (database, photos, settings, alarms are re-armed on
+`MY_PACKAGE_REPLACED`). In the app: Profile → **About** → _Get the latest version_ opens the newest release in the
+browser; download `app-release.apk` and open it, then confirm **Update**. The app itself still makes no network
+calls and has no Internet permission.
+
+Three things keep in-place updates working; break any of them and Android refuses the install, leaving
+uninstall (which erases data) as the only way forward:
+
+- **Same signing key.** Unsigned-by-secret builds use the committed `android/app/debug.keystore`; never replace
+  it. Adding the `ANDROID_KEYSTORE_*` secrets later changes the release signature, so phones holding a
+  debug-key build must export a backup (Profile → Backup), uninstall, install, and restore once.
+- **Increasing `versionCode`.** It is the workflow run number; renaming or recreating the workflow restarts the
+  count and the new APKs look like downgrades.
+- **Same `applicationId`** (`com.fitsaathi.app`).
+
+Schema changes ship as numbered migrations in `src/db/migrations/`, applied on first launch after an update.
+
 ## Publishing to Google Play
 
 `docs/PLAY_CHECKLIST.md` has the full list: target API 36, release signing from repository secrets, the exact
