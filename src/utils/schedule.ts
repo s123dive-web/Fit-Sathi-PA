@@ -1,5 +1,6 @@
 import type { Habit, HabitLog, HabitSchedule, ISODate } from '../types';
 import { addDays, isoWeekday, weekStart } from './dates';
+import { t } from '../i18n';
 
 /** Whether a habit is expected on a given day (for daily / weekday schedules). times_per_week is always "available". */
 export function isScheduledOn(schedule: HabitSchedule, date: ISODate): boolean {
@@ -32,14 +33,14 @@ export function weeklyFrequency(schedule: HabitSchedule): number {
 export function describeSchedule(schedule: HabitSchedule): string {
   switch (schedule.type) {
     case 'daily':
-      return 'Every day';
+      return t('habits.everyDay');
     case 'times_per_week':
-      return `${schedule.timesPerWeek ?? 3}× per week`;
+      return t('habits.timesPerWeek', { n: schedule.timesPerWeek ?? 3 });
     case 'weekdays': {
-      const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const keys = ['', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
       const days = [...(schedule.weekdays ?? [])].sort();
-      if (days.length === 7) return 'Every day';
-      return days.map((d) => labels[d]).join(' · ');
+      if (days.length === 7) return t('habits.everyDay');
+      return days.map((d) => t(`days.${keys[d]}`)).join(' · ');
     }
     default:
       return '';

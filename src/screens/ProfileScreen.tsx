@@ -18,6 +18,7 @@ import { LOCK_TIMEOUTS } from '../utils/pin';
 import { syncNative } from '../services/sync';
 import { exportBackup, parseBackup, pickBackupFile, restoreTables, summarizeTables, unpackBackup, type BackupFile } from '../services/backup';
 import { formatTime } from '../utils/dates';
+import { exportCsv } from '../services/csv';
 import { t } from '../i18n';
 
 type Mode = 'view' | 'edit' | 'import';
@@ -258,6 +259,24 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
       </Card>
 
       <Card title={t('profile.appearance')}>
+        <div className="mb-3">
+          <Field label={t('profile.language')}>
+            <select
+              className="input"
+              value={settings.language}
+              aria-label={t('profile.language')}
+              onChange={async (e) => {
+                await settingsRepo.set('language', e.target.value as Settings['language']);
+                // Every screen reads its text at render time; a reload applies the language everywhere at once.
+                window.location.reload();
+              }}
+            >
+              <option value="system">{t('profile.languageSystem')}</option>
+              <option value="en">English</option>
+              <option value="hi">हिन्दी</option>
+            </select>
+          </Field>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <Field label={t('profile.theme')}>
             <select
@@ -534,6 +553,19 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
             {t('profile.restoreBtn')}
           </button>
         </div>
+        <button
+          className="btn-ghost mt-2 w-full"
+          onClick={async () => {
+            try {
+              if (await exportCsv()) toast(t('profile.csvSaved'), 'success');
+            } catch (e) {
+              toast(t('profile.backupFailed', { msg: errMsg(e) }), 'error');
+            }
+          }}
+        >
+          {t('profile.exportCsv')}
+        </button>
+        <p className="mt-1 text-[11px] text-slate-400">{t('profile.exportCsvHint')}</p>
       </Card>
 
       <h2 className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('profile.advanced')}</h2>

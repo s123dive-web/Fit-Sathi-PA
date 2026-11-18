@@ -20,7 +20,7 @@ import { FitAlarms, FitBiometric } from './native/plugins';
 import { refreshSteps } from './services/health';
 import { todayISO } from './utils/dates';
 import { notifyChange, toast } from './store/appStore';
-import { t } from './i18n';
+import { resolveLocale, setLocale, t } from './i18n';
 
 /** Housekeeping on launch and on every return to the foreground. Never throws: a bad row must not block the UI. */
 async function onForeground(): Promise<void> {
@@ -63,6 +63,7 @@ export default function App() {
         setProfile(p);
         setSettings(s);
         applyTheme(s.theme);
+        setLocale(resolveLocale(s.language));
         useLockStore.getState().initialize(s.onboarded && s.appLockEnabled);
         // Block screenshots / recents thumbnails while the app lock is on (FLAG_SECURE on Android).
         FitBiometric.setSecureScreen({ enabled: s.appLockEnabled }).catch(() => undefined);

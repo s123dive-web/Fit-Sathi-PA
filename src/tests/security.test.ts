@@ -32,6 +32,7 @@ async function base(): Promise<Settings> {
     lastWeeklySummaryFor: null,
     installedAt: '',
     lastBackupAt: null,
+    language: 'en',
     appLockEnabled: true,
     pinHash: await hashPin('2580', salt),
     pinSalt: salt,

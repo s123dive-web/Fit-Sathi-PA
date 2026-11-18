@@ -7,7 +7,7 @@ import { addDays, formatDateShort, formatTime, nowHHMM, todayISO } from '../util
 import { nutritionTargets } from '../utils/nutrition';
 import { isInEatingWindow } from '../utils/fasting';
 import { newId } from '../utils/ids';
-import { logMeal, removeMeal } from '../services/actions';
+import { logMeal, removeMeal, updateMeal } from '../services/actions';
 import { FOOD_CATEGORIES } from '../data/indianFoods';
 import { isVegetarianDiet } from '../utils/nutrition';
 import { t } from '../i18n';
@@ -20,6 +20,7 @@ export function Food({ profile }: { profile: Profile }) {
   const [date, setDate] = useState(todayISO());
   const [picker, setPicker] = useState(false);
   const [custom, setCustom] = useState(false);
+  const [editing, setEditing] = useState<MealLog | null>(null);
   const targets = useMemo(() => nutritionTargets(profile), [profile]);
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [foods, meals, week] = await Promise.all([foodRepo.all(), mealRepo.on(date), mealRepo.between(addDays(date, -6), date)]);
@@ -134,6 +135,9 @@ export function Food({ profile }: { profile: Profile }) {
                     {t('food.macroLine', { kcal: Math.round(m.kcal), p: Math.round(m.proteinG), c: Math.round(m.carbsG), f: Math.round(m.fatG) })}
                   </div>
                 </div>
+                <button className="min-h-[44px] px-2 text-xs text-brand-600" aria-label={`${t('common.edit')}: ${m.foodName}`} onClick={() => setEditing(m)}>
+                  {t('common.edit')}
+                </button>
                 <button
                   className="min-h-[44px] px-2 text-xs text-rose-600"
                   aria-label={`${t('common.remove')}: ${m.foodName}`}
@@ -146,6 +150,8 @@ export function Food({ profile }: { profile: Profile }) {
           </ul>
         )}
       </Card>
+
+      <MealEditor meal={editing} profile={profile} onClose={() => setEditing(null)} />
 
       {data.foods.length === 0 && <EmptyState emoji="🍛" title={t('food.noMatch')} />}
 
@@ -518,6 +524,86 @@ function CustomFoodEditor({ open, onClose }: { open: boolean; onClose: () => voi
           <input type="checkbox" checked={f.vegetarian} onChange={(e) => set({ vegetarian: e.target.checked })} /> {t('food.vegetarian')}
         </label>
       </div>
+    </Modal>
+  );
+}
+
+/** Change the servings or time of a meal that is already logged. */
+function MealEditor({ meal, profile, onClose }: { meal: MealLog | null; profile: Profile; onClose: () => void }) {
+  const [servingsStr, setServingsStr] = useState('1');
+  const [time, setTime] = useState('12:00');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!meal) return;
+    setServingsStr(String(meal.servings));
+    setTime(meal.time);
+    setSaving(false);
+  }, [meal]);
+  const parsed = Number(servingsStr);
+  const valid = servingsStr.trim() !== '' && Number.isFinite(parsed) && parsed >= SERVINGS_MIN && parsed <= SERVINGS_MAX;
+  const k = meal && valid ? parsed / (meal.servings > 0 ? meal.servings : 1) : 1;
+  const save = async () => {
+    if (!meal || saving) return;
+    if (!valid) return toast(t('food.servingsRange', { min: SERVINGS_MIN, max: SERVINGS_MAX }), 'error');
+    setSaving(true);
+    try {
+      await updateMeal(profile, meal, parsed, time);
+      toast(t('food.mealUpdated'), 'success');
+      onClose();
+    } catch (e) {
+      toast(t('common.actionFailed', { msg: errMsg(e) }), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal
+      open={!!meal}
+      onClose={onClose}
+      title={t('food.editMeal')}
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </button>
+          <button className="btn-primary" disabled={saving} onClick={() => void save()}>
+            {saving ? t('common.saving') : t('common.save')}
+          </button>
+        </>
+      }
+    >
+      {meal && (
+        <div className="space-y-3">
+          <div className="text-sm font-medium">{meal.foodName}</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('food.servings')}>
+              <input
+                className="input"
+                type="number"
+                inputMode="decimal"
+                step="0.25"
+                min={SERVINGS_MIN}
+                max={SERVINGS_MAX}
+                value={servingsStr}
+                aria-label={t('food.servings')}
+                aria-invalid={!valid}
+                onChange={(e) => setServingsStr(e.target.value)}
+              />
+            </Field>
+            <Field label={t('food.time')}>
+              <input type="time" className="input" value={time} aria-label={t('food.time')} onChange={(e) => e.target.value && setTime(e.target.value)} />
+            </Field>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800/60">
+            {t('food.macroLine', {
+              kcal: Math.round(meal.kcal * k),
+              p: Math.round(meal.proteinG * k),
+              c: Math.round(meal.carbsG * k),
+              f: Math.round(meal.fatG * k),
+            })}
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

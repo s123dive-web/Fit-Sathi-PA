@@ -13,6 +13,14 @@ export function setLocale(locale: string): void {
   if (LOCALES[locale]) current = locale;
 }
 
+/** Map the stored language setting to a registered locale ('system' follows the phone's language). */
+export function resolveLocale(setting: string | undefined): string {
+  if (setting && setting !== 'system') return LOCALES[setting] ? setting : 'en';
+  const nav = typeof navigator !== 'undefined' ? (navigator.language ?? 'en') : 'en';
+  const short = nav.toLowerCase().split('-')[0];
+  return LOCALES[short] ? short : 'en';
+}
+
 export function getLocale(): string {
   return current;
 }

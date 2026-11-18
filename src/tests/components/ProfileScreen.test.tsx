@@ -55,6 +55,7 @@ const settings: Settings = {
   lastWeeklySummaryFor: null,
   installedAt: '',
   lastBackupAt: null,
+  language: 'en',
   appLockEnabled: false,
   pinHash: null,
   pinSalt: null,

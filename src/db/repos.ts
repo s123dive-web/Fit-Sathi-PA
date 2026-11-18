@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   healthConnectEnabled: false,
   lastWeeklySummaryFor: null,
   installedAt: nowIso(),
+  language: 'system',
   lastBackupAt: null,
   appLockEnabled: false,
   pinHash: null,
@@ -237,6 +238,14 @@ export const habitRepo = {
         now,
       ],
     );
+  },
+  /** Persist a new display order: `ids` lists habit ids first to last. */
+  async setOrder(ids: string[]): Promise<void> {
+    const db = await getDb();
+    const now = nowIso();
+    await db.transaction(async () => {
+      for (let i = 0; i < ids.length; i += 1) await db.run(`UPDATE habits SET sort_order = ?, updated_at = ? WHERE id = ?`, [i, now, ids[i]]);
+    });
   },
   /** Move the habit's start date (the first day statistics count from). */
   async setCreatedAt(id: string, date: ISODate): Promise<void> {
@@ -495,6 +504,13 @@ export const mealRepo = {
       ],
     );
     return log;
+  },
+  async update(m: Pick<MealLog, 'id' | 'time' | 'servings' | 'kcal' | 'proteinG' | 'carbsG' | 'fatG' | 'outsideFastingWindow'>): Promise<void> {
+    const db = await getDb();
+    await db.run(
+      `UPDATE meal_logs SET time = ?, servings = ?, kcal = ?, protein_g = ?, carbs_g = ?, fat_g = ?, outside_window = ?, updated_at = ? WHERE id = ?`,
+      [m.time, m.servings, m.kcal, m.proteinG, m.carbsG, m.fatG, m.outsideFastingWindow ? 1 : 0, nowIso(), m.id],
+    );
   },
   async remove(id: string): Promise<void> {
     const db = await getDb();

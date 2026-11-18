@@ -189,3 +189,20 @@ export async function deleteWeight(id: string): Promise<void> {
   notifyChange();
   scheduleSync();
 }
+
+/** Change a logged meal's servings and time; macros scale with the servings and the fasting-window flag is re-checked. */
+export async function updateMeal(profile: Profile, meal: MealLog, servings: number, time: MealLog['time']): Promise<void> {
+  if (!(servings > 0) || !Number.isFinite(servings)) throw new Error(t('errors.servingsRange'));
+  const k = servings / (meal.servings > 0 ? meal.servings : 1);
+  await mealRepo.update({
+    id: meal.id,
+    time,
+    servings,
+    kcal: meal.kcal * k,
+    proteinG: meal.proteinG * k,
+    carbsG: meal.carbsG * k,
+    fatG: meal.fatG * k,
+    outsideFastingWindow: profile.fasting.enabled && !isInEatingWindow(profile.fasting, time),
+  });
+  notifyChange();
+}

@@ -228,6 +228,8 @@ export interface Settings {
   healthConnectEnabled: boolean;
   lastWeeklySummaryFor: ISODate | null;
   installedAt: string;
+  /** UI language; 'system' follows the phone. */
+  language: 'system' | 'en' | 'hi';
   /** When the user last saved a backup file (ISO timestamp); drives the backup reminder. */
   lastBackupAt: string | null;
   /** App lock */

@@ -45,6 +45,7 @@ export function Habits({ profile }: { profile: Profile }) {
   const [editing, setEditing] = useState<Habit | null | 'new'>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Habit | null>(null);
+  const [reordering, setReordering] = useState(false);
   const { data, loading, error, reload } = useAsyncData(async () => {
     const habits = await habitRepo.all(true);
     const logs = await habitRepo.allLogs();
@@ -109,9 +110,16 @@ export function Habits({ profile }: { profile: Profile }) {
     <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('habits.title')}</h1>
-        <button className="btn-primary" onClick={() => setEditing('new')}>
-          {t('habits.new')}
-        </button>
+        <div className="flex gap-2">
+          {active.length > 1 && (
+            <button className="btn-ghost" aria-pressed={reordering} onClick={() => setReordering((v) => !v)}>
+              {reordering ? t('habits.reorderDone') : t('habits.reorder')}
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => setEditing('new')}>
+            {t('habits.new')}
+          </button>
+        </div>
       </header>
 
       {active.length === 0 && (
@@ -128,9 +136,43 @@ export function Habits({ profile }: { profile: Profile }) {
       )}
 
       <ul className="fold-aware grid gap-3 md:grid-cols-2 md:gap-6">
-        {active.map((h) => {
+        {active.map((h, idx) => {
           const s = computed.stats.get(h.id)!;
           const scheduledToday = isScheduledOn(h.schedule, today);
+          const move = (delta: number) => {
+            const ids = active.map((x) => x.id);
+            const to = idx + delta;
+            if (to < 0 || to >= ids.length) return;
+            [ids[idx], ids[to]] = [ids[to], ids[idx]];
+            habitRepo
+              .setOrder(ids)
+              .then(() => {
+                notifyChange();
+                void syncNative();
+              })
+              .catch((e) => toast(t('common.actionFailed', { msg: errMsg(e) }), 'error'));
+          };
+          if (reordering) {
+            return (
+              <li key={h.id} className="card flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">
+                  {h.emoji}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-medium">{h.name}</span>
+                <button className="btn-ghost w-12 p-0" disabled={idx === 0} aria-label={t('habits.moveUp', { name: h.name })} onClick={() => move(-1)}>
+                  ↑
+                </button>
+                <button
+                  className="btn-ghost w-12 p-0"
+                  disabled={idx === active.length - 1}
+                  aria-label={t('habits.moveDown', { name: h.name })}
+                  onClick={() => move(1)}
+                >
+                  ↓
+                </button>
+              </li>
+            );
+          }
           return (
             <li key={h.id}>
               <button className="card w-full text-left active:scale-[0.99]" onClick={() => setSelected(h.id)}>
