@@ -20,8 +20,8 @@ Only what you enter or allow:
 - Your daily logs: habit ticks, supplements taken, water, weight entries, meals and nutrition totals, XP points,
   weekly summaries and the motivational messages already scheduled.
 - **Progress photos** (optional): taken with the camera only after you turn on photo consent. They are encrypted
-  with a key held in the Android Keystore, stored in the app's private folder, excluded from backups and device
-  transfers, and never uploaded.
+  with a key held in the Android Keystore, stored in the app's private folder, excluded from Android's automatic backups and
+  device transfers, and never uploaded. They go into a backup file only if you turn on "Include progress photos".
 - **Daily step count** (optional): read from **Health Connect** only after you grant the "Read steps" permission.
   FitSaathi reads steps and nothing else, never writes to Health Connect, stores the count in its local database to
   show it on the Today and Progress screens, and does not share it with anyone or use it for advertising. Revoke the
@@ -42,20 +42,21 @@ Android's encrypted preferences.
 
 - **Encrypted backup**: creates a file encrypted with a passphrase you choose (AES-256-GCM). You pick where it goes
   with the Android file picker, for example your Downloads folder or your own Google Drive. Google Drive, if you
-  choose it, is governed by Google's privacy policy. Photos and app-lock settings are never included.
+  choose it, is governed by Google's privacy policy. App-lock settings are never included. Photos are included only if you turn on "Include progress photos"; they are
+  then protected by your passphrase instead of the device key.
 - **Profile export**: a plain JSON file with your profile settings, written where you choose.
 
 ## Permissions and why
 
-| Permission | Used for |
-|------------|----------|
-| Notifications | Reminders, the pinned daily checklist and alarm banners |
+| Permission                        | Used for                                                                |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| Notifications                     | Reminders, the pinned daily checklist and alarm banners                 |
 | Alarms & reminders (exact alarms) | Supplement and workout alarm clocks that must ring at the chosen minute |
-| Camera | Taking progress photos (only when you choose to) |
-| Biometrics | Unlocking the app with fingerprint or face, as a PIN alternative |
-| Health Connect: Read steps | Showing your daily step count |
-| Run at startup | Re-scheduling your alarms after the phone restarts |
-| Vibrate / keep awake | Alarm vibration and delivering alarms reliably |
+| Camera                            | Taking progress photos (only when you choose to)                        |
+| Biometrics                        | Unlocking the app with fingerprint or face, as a PIN alternative        |
+| Health Connect: Read steps        | Showing your daily step count                                           |
+| Run at startup                    | Re-scheduling your alarms after the phone restarts                      |
+| Vibrate / keep awake              | Alarm vibration and delivering alarms reliably                          |
 
 ## Deleting your data
 

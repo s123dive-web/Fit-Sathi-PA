@@ -174,8 +174,17 @@ async function migrate(conn: SQLiteDBConnection): Promise<void> {
   const applied = new Set(((await conn.query(`SELECT version FROM schema_migrations`)).values ?? []).map((r) => (r as { version: number }).version));
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue;
-    await conn.execute(m.sql, false);
-    await conn.run(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`, [m.version, m.name, new Date().toISOString()], false);
+    // Each migration and its bookkeeping row commit together: an interrupted upgrade leaves the previous
+    // schema intact and is simply retried on the next launch.
+    await conn.execute('BEGIN', false);
+    try {
+      await conn.execute(m.sql, false);
+      await conn.run(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`, [m.version, m.name, new Date().toISOString()], false);
+      await conn.execute('COMMIT', false);
+    } catch (e) {
+      await conn.execute('ROLLBACK', false).catch(() => undefined);
+      throw e;
+    }
   }
 }
 

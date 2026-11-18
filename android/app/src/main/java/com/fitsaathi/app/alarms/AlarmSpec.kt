@@ -19,6 +19,7 @@ data class AlarmSpec(
     val fullScreen: Boolean = false,
     val date: String? = null,     // one-shot on this local date (yyyy-MM-dd); null = recurring
     val exact: Boolean = false,   // exact delivery (supplements / workout); everything else is inexact
+    val notBefore: String? = null, // recurring only: first local date (yyyy-MM-dd) the alarm may fire again
 ) {
     val notificationId: Int get() = id.hashCode() and 0x7fffffff
 
@@ -29,6 +30,7 @@ data class AlarmSpec(
         o.put("days", JSONArray(days)); o.put("actions", JSONArray(actions))
         o.put("alarmClock", alarmClock); o.put("fullScreen", fullScreen); o.put("exact", exact)
         o.put("date", date ?: JSONObject.NULL)
+        o.put("notBefore", notBefore ?: JSONObject.NULL)
         return o
     }
 
@@ -51,17 +53,26 @@ data class AlarmSpec(
             c.set(year, month - 1, day, hour, minute, 0)
             return c.timeInMillis // non-lenient: throws IllegalArgumentException on e.g. Feb 30
         }
+        // A rest period (weekly habit whose target is met) pushes the search start to that date's midnight.
+        var base = from
+        val nb = notBefore?.let { DATE_RE.matchEntire(it) }
+        if (nb != null) {
+            val start = Calendar.getInstance()
+            start.clear()
+            start.set(nb.groupValues[1].toInt(), nb.groupValues[2].toInt() - 1, nb.groupValues[3].toInt(), 0, 0, 0)
+            if (start.timeInMillis - 1 > base) base = start.timeInMillis - 1
+        }
         val cal = Calendar.getInstance()
-        cal.timeInMillis = from
+        cal.timeInMillis = base
         for (i in 0..7) {
             val c = cal.clone() as Calendar
             c.add(Calendar.DAY_OF_YEAR, i)
             c.set(Calendar.HOUR_OF_DAY, hour); c.set(Calendar.MINUTE, minute); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
             val iso = if (c.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) 7 else c.get(Calendar.DAY_OF_WEEK) - 1
             if (days.isNotEmpty() && !days.contains(iso)) continue
-            if (c.timeInMillis > from) return c.timeInMillis
+            if (c.timeInMillis > base) return c.timeInMillis
         }
-        return from + 24 * 3600 * 1000L
+        return base + 24 * 3600 * 1000L
     }
 
     companion object {
@@ -73,6 +84,7 @@ data class AlarmSpec(
             if (id.isEmpty()) return null
             val date: String? = if (o.isNull("date")) null else o.optString("date", "").ifEmpty { null }
             if (date != null && !DATE_RE.matches(date)) return null
+            val notBefore: String? = if (o.isNull("notBefore")) null else o.optString("notBefore", "").takeIf { DATE_RE.matches(it) }
             val hour = o.optInt("hour", 8)
             val minute = o.optInt("minute", 0)
             if (hour !in 0..23 || minute !in 0..59) return null
@@ -96,6 +108,7 @@ data class AlarmSpec(
                 fullScreen = o.optBoolean("fullScreen", false),
                 date = date,
                 exact = o.optBoolean("exact", false),
+                notBefore = notBefore,
             )
         }
     }

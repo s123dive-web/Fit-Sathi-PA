@@ -12,6 +12,7 @@ import { computeInsights } from '../utils/insights';
 import { displayWeight, formatWeight } from '../utils/units';
 import { currentWeekSummary } from '../services/weekly';
 import { captureProgressPhoto, deletePhoto, loadPhotoDataUrl } from '../services/photos';
+import { deleteWeight } from '../services/actions';
 
 /** Tracks the `dark` class on <html> so chart colours follow the theme. */
 function useIsDark(): boolean {
@@ -177,6 +178,8 @@ export function Progress({ profile, settings }: { profile: Profile; settings: Se
             </div>
             <p className="mt-3 text-[11px] text-slate-400">{t('progress.disclaimer')}</p>
           </Card>
+
+          <WeightEntries weights={data.weights} unit={unit} />
 
           <Card
             title={
@@ -549,5 +552,50 @@ function PhotoThumb({ photo, unit, caption, large }: { photo: ProgressPhoto; uni
         {photo.weightKg !== null ? ` · ${formatWeight(photo.weightKg, unit, 1)}` : ''}
       </figcaption>
     </figure>
+  );
+}
+
+/** Recent weight entries with a delete button, so a typo does not stay in the trend forever. */
+function WeightEntries({ weights, unit }: { weights: { id: string; date: string; kg: number }[]; unit: Settings['weightUnit'] }) {
+  const [all, setAll] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!weights.length) return null;
+  const rows = [...weights].reverse();
+  const shown = all ? rows : rows.slice(0, 5);
+  return (
+    <Card title={t('progress.weightEntries')}>
+      <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+        {shown.map((w) => (
+          <li key={w.id} className="flex min-h-[44px] items-center justify-between gap-3 text-sm">
+            <span className="text-slate-500">{formatDateShort(w.date)}</span>
+            <span className="flex-1 text-right font-medium">{formatWeight(w.kg, unit)}</span>
+            <button
+              className="min-h-[44px] px-2 text-xs text-rose-600 dark:text-rose-300"
+              disabled={busy === w.id}
+              aria-label={t('progress.deleteWeight', { date: formatDateShort(w.date) })}
+              onClick={async () => {
+                setBusy(w.id);
+                try {
+                  await deleteWeight(w.id);
+                  toast(t('progress.weightDeleted'));
+                } catch (e) {
+                  toast(t('common.actionFailed', { msg: e instanceof Error ? e.message : String(e) }), 'error');
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              {t('common.delete')}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {rows.length > 5 && (
+        <button className="mt-1 min-h-[44px] text-xs font-medium text-brand-600" onClick={() => setAll((v) => !v)}>
+          {all ? t('progress.showLess') : t('progress.showAll', { n: rows.length })}
+        </button>
+      )}
+      <p className="text-[11px] text-slate-400">{t('progress.weightEntriesHint')}</p>
+    </Card>
   );
 }

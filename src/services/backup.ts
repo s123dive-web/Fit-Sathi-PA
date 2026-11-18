@@ -1,6 +1,7 @@
 import { getDb, TABLES, type TableName } from '../db/database';
+import { settingsRepo } from '../db/repos';
 import { BACKUP_MIGRATIONS, CURRENT_SCHEMA_VERSION } from '../db/migrations';
-import { FitBackup } from '../native/plugins';
+import { FitBackup, FitSecurePhotos } from '../native/plugins';
 import { notifyChange } from '../store/appStore';
 import { todayISO } from '../utils/dates';
 import { decryptJson, encryptJson, type EncryptedPayload } from '../utils/crypto';
@@ -45,19 +46,64 @@ export function backupAad(f: Pick<BackupFile, 'app' | 'format' | 'schemaVersion'
   return JSON.stringify({ app: f.app, format: f.format, schemaVersion: f.schemaVersion });
 }
 
-export async function createBackup(passphrase: string): Promise<BackupFile> {
+/** Decrypted progress photos keyed by their storage key (`photos.path`); values are base64 JPEGs. */
+export type PhotoFiles = Record<string, string>;
+
+/**
+ * Encrypted payload when photos are included. Without photos the payload is the bare table dump, exactly as
+ * before, so those files stay readable by older builds.
+ */
+interface PhotoPayload {
+  tables: Dump;
+  photoFiles: PhotoFiles;
+}
+
+function isPhotoPayload(v: unknown): v is PhotoPayload {
+  const o = v as Partial<PhotoPayload> | null;
+  return !!o && typeof o === 'object' && !!o.tables && typeof o.tables === 'object' && !!o.photoFiles && typeof o.photoFiles === 'object';
+}
+
+/** Read every stored photo. A file that cannot be read (already missing) is skipped, not fatal. */
+async function collectPhotoFiles(dump: Dump): Promise<PhotoFiles> {
+  const out: PhotoFiles = {};
+  let total = 0;
+  for (const row of dump.photos ?? []) {
+    const key = String(row.path ?? '');
+    if (!key) continue;
+    try {
+      const { base64 } = await FitSecurePhotos.load({ key });
+      total += base64.length;
+      if (total > MAX_BACKUP_BYTES * 0.7) throw new Error(t('backup.photosTooLarge'));
+      out[key] = base64;
+    } catch (e) {
+      if (e instanceof Error && e.message === t('backup.photosTooLarge')) throw e;
+    }
+  }
+  return out;
+}
+
+/**
+ * Build a backup. Photos are only ever written into an encrypted backup (never into a plain one): they leave
+ * the device's keystore protection, so the passphrase is what protects them from then on.
+ */
+export async function createBackup(passphrase: string, opts: { includePhotos?: boolean } = {}): Promise<BackupFile> {
   const db = await getDb();
   const dump = stripLockSettings(await db.exportAll());
   const schemaVersion = await db.schemaVersion();
   const base = { app: 'fitsaathi' as const, format: 2 as const, schemaVersion, exportedAt: new Date().toISOString() };
   if (!passphrase) return { ...base, encrypted: false, tables: dump };
-  return { ...base, encrypted: true, payload: await encryptJson(dump, passphrase, backupAad(base)) };
+  const content: Dump | PhotoPayload = opts.includePhotos ? { tables: dump, photoFiles: await collectPhotoFiles(dump) } : dump;
+  return { ...base, encrypted: true, payload: await encryptJson(content, passphrase, backupAad(base)) };
 }
 
 /** Opens the system document picker; the user may pick Google Drive, Downloads, etc. The app never uploads anything itself. */
-export async function exportBackup(passphrase: string): Promise<boolean> {
-  const file = await createBackup(passphrase);
+export async function exportBackup(passphrase: string, opts: { includePhotos?: boolean } = {}): Promise<boolean> {
+  const file = await createBackup(passphrase, opts);
   const res = await FitBackup.saveDocument({ filename: `fitsaathi-backup-${todayISO()}.json`, mimeType: 'application/json', data: JSON.stringify(file) });
+  if (res.saved) {
+    await settingsRepo.set('lastBackupAt', new Date().toISOString());
+    notifyChange();
+  }
   return res.saved;
 }
 
@@ -122,13 +168,25 @@ export function validateRows(tables: Dump): string | null {
 }
 
 /** Decrypt (if needed), validate table names + rows and apply backup-level migrations up to the current schema. */
-export async function unpackBackup(file: BackupFile, passphrase: string): Promise<{ ok: true; tables: Dump } | { ok: false; error: string }> {
+export async function unpackBackup(
+  file: BackupFile,
+  passphrase: string,
+): Promise<{ ok: true; tables: Dump; photoFiles?: PhotoFiles } | { ok: false; error: string }> {
   let tables: Dump;
+  let photoFiles: PhotoFiles | undefined;
   if (file.encrypted) {
     try {
       const out = await decryptJson(file.payload as EncryptedPayload, passphrase, backupAad(file));
       if (!out || typeof out !== 'object' || Array.isArray(out)) return { ok: false, error: t('backup.noTables') };
-      tables = out as Dump;
+      if (isPhotoPayload(out)) {
+        tables = out.tables;
+        photoFiles = {};
+        for (const [k, v] of Object.entries(out.photoFiles)) {
+          if (/^[A-Za-z0-9_-]+$/.test(k) && typeof v === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(v)) photoFiles[k] = v;
+        }
+      } else {
+        tables = out as Dump;
+      }
     } catch (e) {
       // A validation error (bad iterations, wrong alg) carries a message; a GCM auth failure does not.
       const msg = e instanceof Error && e.message && !/operation|decrypt/i.test(e.message) ? e.message : '';
@@ -144,7 +202,7 @@ export async function unpackBackup(file: BackupFile, passphrase: string): Promis
   }
   const rowError = validateRows(tables);
   if (rowError) return { ok: false, error: rowError };
-  return { ok: true, tables: stripLockSettings(tables) };
+  return { ok: true, tables: stripLockSettings(tables), photoFiles };
 }
 
 export async function pickBackupFile(): Promise<{ text: string; name: string } | null> {
@@ -153,9 +211,32 @@ export async function pickBackupFile(): Promise<{ text: string; name: string } |
   return { text: res.data, name: res.name ?? 'backup.json' };
 }
 
-export async function restoreTables(tables: Dump): Promise<void> {
+/**
+ * Replace the database with `tables`. When the backup carried photos they are re-encrypted with this device's
+ * key and the restored rows are pointed at the new files. Photo files no longer referenced are deleted.
+ */
+export async function restoreTables(tables: Dump, photoFiles?: PhotoFiles): Promise<void> {
   const db = await getDb();
+  const before = (await db.query<{ path: string }>(`SELECT path FROM photos`)).map((r) => r.path);
   await db.importAll(stripLockSettings(tables));
+  const rows = await db.query<{ id: string; path: string }>(`SELECT id, path FROM photos`);
+  const kept = new Set<string>();
+  for (const row of rows) {
+    const b64 = photoFiles?.[row.path];
+    if (b64 === undefined) {
+      kept.add(row.path); // no copy in the backup: keep pointing at whatever is on this device
+      continue;
+    }
+    try {
+      const { key } = await FitSecurePhotos.save({ base64: b64 });
+      await db.run(`UPDATE photos SET path = ? WHERE id = ?`, [key, row.id]);
+      kept.add(key);
+    } catch (e) {
+      console.warn('photo restore failed', e);
+      kept.add(row.path);
+    }
+  }
+  await Promise.allSettled(before.filter((k) => !kept.has(k)).map((k) => FitSecurePhotos.remove({ key: k })));
   await db.persist();
   notifyChange();
 }

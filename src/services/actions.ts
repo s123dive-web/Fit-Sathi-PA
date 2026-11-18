@@ -7,6 +7,7 @@ import { computeStreaks } from '../utils/habitStrength';
 import { isMilestone } from '../utils/milestones';
 import { habitActiveOn } from '../utils/schedule';
 import { successHaptic, tapHaptic } from '../utils/haptics';
+import { formatDateShort } from '../utils/dates';
 import { celebrate, notifyChange, showXp, toast } from '../store/appStore';
 import { t } from '../i18n';
 import { scheduleSync } from './sync';
@@ -26,8 +27,17 @@ export async function setHabitStatus(
   const db = await getDb();
   const reason = `habit:${habitId}`;
   let granted = 0;
+  let startMoved = false;
   await db.transaction(async () => {
     const prev = (await habitRepo.logsFor(habitId, date, date))[0]?.status ?? null;
+    // Logging a day before the habit existed moves its start date back so the entry counts in its statistics.
+    if (status !== null) {
+      const h = await habitRepo.get(habitId);
+      if (h && date < h.createdAt) {
+        await habitRepo.setCreatedAt(habitId, date);
+        startMoved = true;
+      }
+    }
     await habitRepo.setLog(habitId, date, status);
     if (status === 'done' && prev !== 'done') {
       if (!(await pointsRepo.has(date, reason))) {
@@ -38,6 +48,7 @@ export async function setHabitStatus(
       await pointsRepo.revoke(date, reason);
     }
   });
+  if (startMoved) toast(t('habits.startMoved', { date: formatDateShort(date) }));
   if (granted && !opts.silent) {
     showXp(granted, opts.anchor?.x, opts.anchor?.y);
     void tapHaptic();
@@ -170,4 +181,11 @@ export async function removeMeal(id: string, date: ISODate): Promise<void> {
     await pointsRepo.revoke(date, `meal:${id}`);
   });
   notifyChange();
+}
+
+/** Delete one weight entry (a typo, a duplicate). XP already earned for that day is kept. */
+export async function deleteWeight(id: string): Promise<void> {
+  await weightRepo.remove(id);
+  notifyChange();
+  scheduleSync();
 }

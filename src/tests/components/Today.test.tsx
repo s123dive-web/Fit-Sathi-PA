@@ -68,6 +68,7 @@ const settings: Settings = {
   healthConnectEnabled: false,
   lastWeeklySummaryFor: null,
   installedAt: '',
+  lastBackupAt: null,
   appLockEnabled: false,
   pinHash: null,
   pinSalt: null,

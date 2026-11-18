@@ -42,6 +42,7 @@ describe('<LockScreen />', () => {
       healthConnectEnabled: false,
       lastWeeklySummaryFor: null,
       installedAt: '',
+      lastBackupAt: null,
       appLockEnabled: true,
       pinHash: await hashPin('2580', salt),
       pinSalt: salt,

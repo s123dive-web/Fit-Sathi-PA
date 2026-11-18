@@ -109,7 +109,7 @@ describe('<Habits />', () => {
     expect((screen.getByPlaceholderText(t('habits.namePlaceholder')) as HTMLInputElement).value).toBe('Read 10 pages');
   });
 
-  it('logs a day before the habit was created by moving its start date back', async () => {
+  it('lets a day before the habit was created be logged (the action moves the start date)', async () => {
     habits = [{ ...walk, createdAt: '2026-03-10' }];
     setCreatedAt.mockClear();
     setHabitStatus.mockClear();
@@ -124,7 +124,6 @@ describe('<Habits />', () => {
     fireEvent.change(await screen.findByLabelText(t('habits.logPast')), { target: { value: '2026-03-01' } });
     expect(screen.getByText(/before the habit's start date/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t('common.done')) }));
-    await waitFor(() => expect(setCreatedAt).toHaveBeenCalledWith('h_walk', '2026-03-01'));
     await waitFor(() => expect(setHabitStatus).toHaveBeenCalledWith('h_walk', '2026-03-01', 'done', expect.objectContaining({ silent: true })));
   });
 });

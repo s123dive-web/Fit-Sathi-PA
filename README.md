@@ -236,6 +236,7 @@ testing requirement for new developer accounts.
 - Backups are AES-256-GCM encrypted with your passphrase (PBKDF2-SHA256, 600k iterations, header authenticated)
   and written only where you point the system file picker. The app-lock state (PIN hash, salt, attempt counters)
   is never exported and never restored.
-- Progress photos are encrypted at rest and excluded from backups and Android auto-backup.
+- Progress photos are encrypted at rest and excluded from Android auto-backup. A backup file contains them only
+  when the user turns on _Include progress photos_.
 - The v2 "AI future look" toggle is a stub that only records the preference and is clearly labelled as
   sending a photo to the cloud; no cloud call exists in v1.

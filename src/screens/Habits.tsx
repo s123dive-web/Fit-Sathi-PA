@@ -277,14 +277,8 @@ function HabitDetail({
   const week = weekProgress(habit.schedule, logs, today);
 
   const setDay2 = (s: HabitStatus | null) =>
-    void pending.run(`day:${day}`, s, async () => {
-      // Logging a day before the habit existed moves its start date back so the entry counts.
-      if (s !== null && day < habit.createdAt) {
-        await habitRepo.setCreatedAt(habit.id, day);
-        toast(t('habits.startMoved', { date: formatDateShort(day) }));
-      }
-      await setHabitStatus(habit.id, day, s, s === 'done' ? { xp: habit.xp, silent: day !== today } : { silent: true });
-    });
+    // setHabitStatus moves the start date back when `day` is before it.
+    void pending.run(`day:${day}`, s, () => setHabitStatus(habit.id, day, s, s === 'done' ? { xp: habit.xp, silent: day !== today } : { silent: true }));
 
   return (
     <div className="mx-auto max-w-lg space-y-4 md:max-w-3xl">

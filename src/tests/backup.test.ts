@@ -92,4 +92,25 @@ describe('encrypted backup', () => {
     const res = await unpackBackup(file, 'pw');
     expect(res.ok && res.tables.settings.map((r) => r.key)).toEqual(['theme']);
   });
+
+  it('carries progress photos inside the encrypted payload and returns them on unpack', async () => {
+    const tables = { photos: [{ id: 'ph1', path: 'p_abc', date: '2026-11-01' }] };
+    const file: BackupFile = {
+      ...header,
+      exportedAt: new Date().toISOString(),
+      encrypted: true,
+      payload: await encryptJson({ tables, photoFiles: { p_abc: 'QUJD', 'bad key!': 'QUJD', p_notb64: '***' } }, 'pw', backupAad(header)),
+    };
+    const res = await unpackBackup(file, 'pw');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.tables.photos).toHaveLength(1);
+    // malformed keys / non-base64 values are dropped rather than written to disk
+    expect(res.photoFiles).toEqual({ p_abc: 'QUJD' });
+  });
+
+  it('a backup without photos unpacks exactly as before (no photoFiles)', async () => {
+    const res = await unpackBackup(await encryptedFile({ habits: [] }), 'pw');
+    expect(res.ok && res.photoFiles).toBeUndefined();
+  });
 });

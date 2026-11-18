@@ -28,6 +28,8 @@ export interface AlarmSpec {
    * every other reminder is scheduled inexactly (setWindow) to respect battery and Play's exact-alarm policy.
    */
   exact?: boolean;
+  /** Recurring alarms only: do not fire before this local date (YYYY-MM-DD). Used to rest a weekly habit's reminder once its target is met. */
+  notBefore?: ISODate;
 }
 
 export interface PinnedItem {

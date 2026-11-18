@@ -45,6 +45,9 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
   const [backupOpen, setBackupOpen] = useState(false);
   const [restoreFile, setRestoreFile] = useState<BackupFile | null>(null);
   const [restoreTablesState, setRestoreTablesState] = useState<Record<string, Record<string, unknown>[]> | null>(null);
+  const [restorePhotos, setRestorePhotos] = useState<Record<string, string> | undefined>(undefined);
+  const [includePhotos, setIncludePhotos] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [passphrase, setPassphrase] = useState('');
   const [pinDialog, setPinDialog] = useState<null | 'enable' | 'change' | 'disable' | 'bio-verify'>(null);
   const [bioStatus, setBioStatus] = useState<BiometricStatus | null>(null);
@@ -488,6 +491,9 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
 
       <Card title={t('profile.backup')}>
         <p className="text-xs text-slate-500">{t('profile.backupNote')}</p>
+        <p className="mt-1 text-xs font-medium">
+          {settings.lastBackupAt ? t('profile.lastBackup', { when: new Date(settings.lastBackupAt).toLocaleDateString() }) : t('profile.lastBackupNever')}
+        </p>
         <div className="mt-3 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm">{t('profile.driveBackup')}</div>
@@ -513,6 +519,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
                 if (!v.ok) return toast(v.error, 'error');
                 setPassphrase('');
                 setRestoreTablesState(null);
+                setRestorePhotos(undefined);
                 setRestoreFile(v.file);
                 if (!v.file.encrypted) {
                   const u2 = await unpackBackup(v.file, '');
@@ -614,19 +621,23 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
             </button>
             <button
               className="btn-primary"
+              disabled={backingUp}
               onClick={async () => {
                 if (passphrase.length < PASSPHRASE_MIN) return toast(t('profile.passphraseShort'), 'error');
+                setBackingUp(true);
                 try {
-                  const ok = await exportBackup(passphrase);
+                  const ok = await exportBackup(passphrase, { includePhotos });
                   if (ok) toast(t('profile.backupSaved'), 'success');
                   setBackupOpen(false);
                   setPassphrase('');
                 } catch (e) {
                   toast(t('profile.backupFailed', { msg: errMsg(e) }), 'error');
+                } finally {
+                  setBackingUp(false);
                 }
               }}
             >
-              {t('common.save')}
+              {backingUp ? t('common.saving') : t('common.save')}
             </button>
           </>
         }
@@ -635,6 +646,13 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
           <input className="input" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoFocus />
         </Field>
         {passphrase.length > 0 && <PassphraseMeter value={passphrase} />}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm">{t('profile.includePhotos')}</div>
+            <div className="text-xs text-slate-500">{t('profile.includePhotosHint')}</div>
+          </div>
+          <Toggle checked={includePhotos} label={t('profile.includePhotos')} onChange={setIncludePhotos} />
+        </div>
       </Modal>
 
       <Modal
@@ -652,7 +670,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
               onClick={async () => {
                 if (!restoreTablesState) return;
                 try {
-                  await restoreTables(restoreTablesState);
+                  await restoreTables(restoreTablesState, restorePhotos);
                   setRestoreFile(null);
                   void syncNative();
                   toast(t('profile.restored'), 'success');
@@ -686,6 +704,7 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
                       const u2 = await unpackBackup(restoreFile, passphrase);
                       if (!u2.ok) return toast(u2.error === 'wrong_passphrase' ? t('profile.wrongPassphrase') : u2.error, 'error');
                       setRestoreTablesState(u2.tables);
+                      setRestorePhotos(u2.photoFiles);
                     } catch (e) {
                       toast(t('profile.restoreFailed', { msg: errMsg(e) }), 'error');
                     }
@@ -694,6 +713,11 @@ export function ProfileScreen({ profile, settings }: { profile: Profile; setting
                   {t('common.ok')}
                 </button>
               </div>
+            )}
+            {restoreTablesState && (
+              <p className="mt-3 text-xs text-slate-500">
+                {restorePhotos ? t('profile.restorePhotosIncluded', { n: Object.keys(restorePhotos).length }) : t('profile.restorePhotosMissing')}
+              </p>
             )}
             {restoreTablesState && (
               <ul className="mt-3 grid grid-cols-2 gap-1 text-xs">

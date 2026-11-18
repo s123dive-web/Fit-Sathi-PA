@@ -80,4 +80,22 @@ describe('alarm set from profile + habits', () => {
     const alarms = buildAlarms(off, habitsFromProfile(off));
     expect(alarms).toHaveLength(0);
   });
+
+  it('rests a weekly habit reminder until next Monday once the week target is met', () => {
+    const gym = {
+      ...habitsFromProfile(sample)[0],
+      id: 'h_gym',
+      kind: 'custom' as const,
+      schedule: { type: 'times_per_week' as const, timesPerWeek: 2 },
+      reminderEnabled: true,
+      reminderTime: '18:00',
+      archived: false,
+    };
+    const log = (date: string) => ({ habitId: 'h_gym', date, status: 'done' as const, loggedAt: date });
+    // 2026-11-18 is a Wednesday; its week starts Mon 16 and the next one Mon 23.
+    const open = buildAlarms(sample, [gym], { today: '2026-11-18', logs: [log('2026-11-16')] }).find((a) => a.id === 'hab:h_gym');
+    expect(open?.notBefore).toBeUndefined();
+    const met = buildAlarms(sample, [gym], { today: '2026-11-18', logs: [log('2026-11-16'), log('2026-11-17')] }).find((a) => a.id === 'hab:h_gym');
+    expect(met?.notBefore).toBe('2026-11-23');
+  });
 });

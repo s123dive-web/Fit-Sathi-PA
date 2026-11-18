@@ -3,8 +3,8 @@ import type { Habit, HabitLog, HabitStatus, ISODate, Profile, Settings, Suppleme
 import { habitRepo, pointsRepo, stepsRepo, supplementRepo, waterRepo, weightRepo } from '../db/repos';
 import { toast, useAsyncData, usePendingActions } from '../store/appStore';
 import { Card, ErrorCard, Modal, ProgressRing, Spinner, TickButton, eventAnchor } from '../components/ui';
-import { addDays, formatDateLong, formatDuration, formatTime, todayISO } from '../utils/dates';
-import { habitActiveOn, weekProgress } from '../utils/schedule';
+import { addDays, diffDays, formatDateLong, formatDateShort, formatDuration, formatTime, todayISO } from '../utils/dates';
+import { habitActiveOn, isScheduledOn, weekProgress } from '../utils/schedule';
 import { computeStreaks } from '../utils/habitStrength';
 import { fastingState } from '../utils/fasting';
 import { levelFromXp } from '../utils/xp';
@@ -33,19 +33,40 @@ interface TodayData {
 
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export function Today({ profile, settings, onOpenHabits }: { profile: Profile; settings: Settings; onOpenHabits: () => void }) {
+/** Days without a backup before the reminder shows. */
+const BACKUP_REMINDER_DAYS = 30;
+let backupNudgeDismissed = false;
+
+export function Today({
+  profile,
+  settings,
+  onOpenHabits,
+  onOpenBackup,
+}: {
+  profile: Profile;
+  settings: Settings;
+  onOpenHabits: () => void;
+  onOpenBackup?: () => void;
+}) {
   const today = todayISO();
+  // The day being viewed / logged. null follows the calendar, so the screen rolls over at midnight.
+  const [pastDay, setPastDay] = useState<ISODate | null>(null);
+  const day = pastDay !== null && pastDay < today ? pastDay : today;
+  const isToday = day === today;
+  const goTo = (d: ISODate) => setPastDay(d >= today ? null : d);
+  const [nudgeHidden, setNudgeHidden] = useState(backupNudgeDismissed);
   const { data, loading, error, reload } = useAsyncData<TodayData>(async () => {
-    const habits = (await habitRepo.all()).filter((h) => habitActiveOn(h, today));
+    // A past day also lists habits created later, so their history can be filled in (ticking one moves its start date back).
+    const habits = (await habitRepo.all()).filter((h) => (isToday ? habitActiveOn(h, day) : isScheduledOn(h.schedule, day)));
     const [logs, recentLogs, supLogs, water, latest, xpToday, xpTotal, steps, supHistories] = await Promise.all([
-      habitRepo.logsBetween(today, today),
+      habitRepo.logsBetween(day, day),
       habitRepo.logsBetween(addDays(today, -LOG_WINDOW_DAYS), today),
-      supplementRepo.logsOn(today),
-      waterRepo.totalOn(today),
+      supplementRepo.logsOn(day),
+      waterRepo.totalOn(day),
       weightRepo.latest(),
-      pointsRepo.totalOn(today),
+      pointsRepo.totalOn(day),
       pointsRepo.total(),
-      stepsRepo.on(today),
+      stepsRepo.on(day),
       // One batch of queries, run concurrently (not one awaited round-trip per supplement).
       Promise.all(profile.supplements.map((s) => supplementRepo.logsFor(s.id))),
     ]);
@@ -68,7 +89,7 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
       xpTotal,
       steps: steps?.steps ?? null,
     };
-  });
+  }, [day]);
   const pending = usePendingActions<HabitStatus | null | boolean | number>(data, (e) => toast(t('common.actionFailed', { msg: errMsg(e) }), 'error'));
 
   const streaks = useMemo(() => {
@@ -103,8 +124,8 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
   const weekOf = (h: Habit) => {
     const wp = weekProgress(
       h.schedule,
-      data.recentLogs.filter((l) => l.habitId === h.id && l.date !== today),
-      today,
+      data.recentLogs.filter((l) => l.habitId === h.id && l.date !== day),
+      day,
     );
     if (!wp) return null;
     const done = wp.done + (statusOf(h.id) === 'done' ? 1 : 0);
@@ -119,13 +140,18 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
   const firstName = profile.user.name.split(' ')[0];
 
   const setStatus = (h: Habit, next: HabitStatus | null, anchor?: { x: number; y: number }) =>
-    void pending.run(`habit:${h.id}`, next, () => setHabitStatus(h.id, today, next, next === 'done' ? { xp: h.xp, anchor } : {}));
+    void pending.run(`habit:${h.id}`, next, () =>
+      setHabitStatus(h.id, day, next, next === 'done' ? { xp: h.xp, anchor, silent: !isToday } : { silent: !isToday }),
+    );
+
+  const lastBackupDays = settings.lastBackupAt ? diffDays(settings.lastBackupAt.slice(0, 10), today) : diffDays(settings.installedAt.slice(0, 10), today);
+  const showBackupNudge = isToday && !nudgeHidden && !!onOpenBackup && lastBackupDays >= BACKUP_REMINDER_DAYS;
 
   return (
     <div className="mx-auto max-w-lg space-y-4 md:max-w-4xl">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs text-slate-500">{formatDateLong(today)}</div>
+          <div className="text-xs text-slate-500">{formatDateLong(day)}</div>
           <h1 className="text-xl font-bold">
             {greeting()}, {firstName}
           </h1>
@@ -139,9 +165,56 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
         </div>
       </header>
 
+      <div className="flex items-center justify-between gap-2">
+        <button className="btn-ghost w-12 p-0" onClick={() => goTo(addDays(day, -1))} aria-label={t('food.prevDay')}>
+          ‹
+        </button>
+        <label className="flex min-h-[44px] flex-1 items-center justify-center gap-2 text-sm font-medium">
+          <span aria-live="polite">{isToday ? t('common.today') : formatDateShort(day)}</span>
+          <input
+            type="date"
+            className="input w-auto py-1 text-xs"
+            value={day}
+            max={today}
+            aria-label={t('today.pickDay')}
+            onChange={(e) => e.target.value && goTo(e.target.value)}
+          />
+        </label>
+        <button className="btn-ghost w-12 p-0" onClick={() => goTo(addDays(day, 1))} disabled={isToday} aria-label={t('food.nextDay')}>
+          ›
+        </button>
+      </div>
+      {!isToday && (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+          <span>{t('today.pastDayNote', { date: formatDateShort(day) })}</span>
+          <button className="min-h-[44px] shrink-0 px-2 font-medium underline-offset-2 hover:underline" onClick={() => setPastDay(null)}>
+            {t('food.backToToday')}
+          </button>
+        </div>
+      )}
+      {showBackupNudge && (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">
+          <span>{settings.lastBackupAt ? t('today.backupOld', { n: lastBackupDays }) : t('today.backupNever')}</span>
+          <span className="flex shrink-0">
+            <button className="min-h-[44px] px-2 font-medium underline-offset-2 hover:underline" onClick={onOpenBackup}>
+              {t('today.backupNow')}
+            </button>
+            <button
+              className="min-h-[44px] px-2 text-slate-500"
+              onClick={() => {
+                backupNudgeDismissed = true;
+                setNudgeHidden(true);
+              }}
+            >
+              {t('today.later')}
+            </button>
+          </span>
+        </div>
+      )}
+
       <div className="fold-aware grid gap-4 md:grid-cols-2 md:gap-6 md:items-start">
         <div className="space-y-4">
-          {profile.fasting.enabled && <FastingCard fasting={profile.fasting} />}
+          {isToday && profile.fasting.enabled && <FastingCard fasting={profile.fasting} />}
 
           {/* Most frequent actions first: water and weight sit above the fold. */}
           <div className="grid grid-cols-2 gap-4" aria-label={t('today.quickActions')}>
@@ -149,10 +222,10 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
               ml={waterMl}
               target={profile.water.targetMl}
               busy={pending.has('water')}
-              onAdd={(anchor) => void pending.run('water', waterMl + 250, () => addWater(today, 250, profile.water.targetMl, anchor))}
-              onUndo={() => void pending.run('water', Math.max(0, waterMl - 250), () => undoWater(today, profile.water.targetMl))}
+              onAdd={(anchor) => void pending.run('water', waterMl + 250, () => addWater(day, 250, profile.water.targetMl, anchor))}
+              onUndo={() => void pending.run('water', Math.max(0, waterMl - 250), () => undoWater(day, profile.water.targetMl))}
             />
-            <WeightCard latest={data.latestWeight} unit={settings.weightUnit} today={today} targetKg={profile.user.targetWeightKg} />
+            <WeightCard latest={data.latestWeight} unit={settings.weightUnit} today={today} logDate={day} targetKg={profile.user.targetWeightKg} />
           </div>
 
           <Card
@@ -238,7 +311,7 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
                               ? t('today.supplementTaken', { name: s.name, time: shownTime })
                               : t('today.supplementMarkTaken', { name: s.name, time: shownTime })
                           }
-                          onClick={(anchor) => void pending.run(`sup:${s.id}`, !taken, () => toggleSupplement(s.id, today, !taken, anchor))}
+                          onClick={(anchor) => void pending.run(`sup:${s.id}`, !taken, () => toggleSupplement(s.id, day, !taken, anchor))}
                         />
                         <div className="min-w-0 flex-1">
                           <div className={`line-clamp-2 text-sm font-medium leading-snug ${taken ? 'text-slate-400 line-through' : ''}`}>
@@ -258,7 +331,7 @@ export function Today({ profile, settings, onOpenHabits }: { profile: Profile; s
             </Card>
           )}
 
-          <StepsCard steps={data.steps} settings={settings} />
+          {isToday && <StepsCard steps={data.steps} settings={settings} />}
         </div>
       </div>
     </div>
@@ -450,11 +523,14 @@ function WeightCard({
   latest,
   unit,
   today,
+  logDate,
   targetKg,
 }: {
   latest: { kg: number; date: string } | null;
   unit: Settings['weightUnit'];
   today: string;
+  /** The day a new entry is saved for (the day being viewed). */
+  logDate: string;
   targetKg: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -489,7 +565,7 @@ function WeightCard({
     }
     setSaving(true);
     try {
-      await logWeight(today, kg, anchor);
+      await logWeight(logDate, kg, anchor);
       close();
     } catch (e) {
       setErr(errMsg(e));
@@ -522,7 +598,7 @@ function WeightCard({
       <Modal
         open={open}
         onClose={close}
-        title={t('today.logWeightTitle')}
+        title={logDate === today ? t('today.logWeightTitle') : t('today.logWeightFor', { date: formatDateShort(logDate) })}
         footer={
           <>
             <button className="btn-ghost" onClick={close}>

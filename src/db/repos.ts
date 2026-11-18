@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   healthConnectEnabled: false,
   lastWeeklySummaryFor: null,
   installedAt: nowIso(),
+  lastBackupAt: null,
   appLockEnabled: false,
   pinHash: null,
   pinSalt: null,
@@ -57,6 +58,8 @@ export const settingsRepo = {
         /* ignore malformed */
       }
     }
+    // First run: pin the install date, otherwise it would read as "now" on every launch.
+    if (!rows.some((r) => r.key === 'installedAt')) await this.set('installedAt', out.installedAt);
     return out;
   },
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {

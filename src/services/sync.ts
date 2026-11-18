@@ -1,8 +1,8 @@
-import type { Habit, ISODate, PendingNativeAction, Profile } from '../types';
+import type { Habit, HabitLog, ISODate, PendingNativeAction, Profile } from '../types';
 import { alarmRepo, habitRepo, notificationLogRepo, pointsRepo, profileRepo, settingsRepo, supplementRepo, waterRepo, weightRepo } from '../db/repos';
 import { addDays, dayNamesToWeekdays, hhmmToMinutes, parseHHMM, todayISO, weekStart } from '../utils/dates';
 import { fastingWarningTime } from '../utils/fasting';
-import { habitDueOn } from '../utils/schedule';
+import { habitDueOn, weekProgress } from '../utils/schedule';
 import { completionStats, computeStreaks } from '../utils/habitStrength';
 import { goalDirection, projectToTarget } from '../utils/projection';
 import { pickQuotes, QUOTES, renderQuote, type QuoteContext } from '../utils/quotes';
@@ -19,7 +19,7 @@ export const MAX_MOTIVATION_TIMES_PER_DAY = 2;
  * Only supplements and the workout are exact (user-visible alarm clocks); everything else is an inexact reminder
  * so the app respects Android's exact-alarm policy and the battery.
  */
-export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
+export function buildAlarms(profile: Profile, habits: Habit[], week?: { today: ISODate; logs: HabitLog[] }): AlarmSpec[] {
   const alarms: AlarmSpec[] = [];
   const n = profile.notifications;
 
@@ -70,6 +70,15 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
       if (hb.archived || !hb.reminderEnabled || !hb.reminderTime) continue;
       const { h, m } = parseHHMM(hb.reminderTime);
       const days = hb.schedule.type === 'weekdays' ? (hb.schedule.weekdays ?? []) : [];
+      // An "N× per week" habit that already met this week's target stays quiet until next Monday.
+      const wp = week
+        ? weekProgress(
+            hb.schedule,
+            week.logs.filter((l) => l.habitId === hb.id),
+            week.today,
+          )
+        : null;
+      const notBefore = week && wp?.met ? addDays(weekStart(week.today), 7) : undefined;
       alarms.push({
         id: `hab:${hb.id}`,
         kind: 'habit',
@@ -81,6 +90,7 @@ export function buildAlarms(profile: Profile, habits: Habit[]): AlarmSpec[] {
         days,
         actions: ['done', 'skip', 'snooze'],
         exact: false,
+        ...(notBefore ? { notBefore } : {}),
       });
     }
     if (n.eveningCheckIn) {
@@ -317,7 +327,7 @@ export async function syncNative(): Promise<void> {
       ...profile.supplements.map((s) => ({ id: s.id, kind: 'supplement' as const, emoji: '💊', title: s.name, done: doneSups.has(s.id) })),
     ];
 
-    const alarms = [...buildAlarms(profile, habits), ...(await buildMotivationAlarms(profile, habits, today))];
+    const alarms = [...buildAlarms(profile, habits, { today, logs: weekLogs }), ...(await buildMotivationAlarms(profile, habits, today))];
     await alarmRepo.replaceAll(alarms);
 
     await Promise.allSettled([
