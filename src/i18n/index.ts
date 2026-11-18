@@ -1,12 +1,13 @@
 import en from './en.json';
+import hi from './hi.json';
 
 /**
  * Minimal i18n: one JSON file per language with dotted keys and {placeholders}.
- * English is the default; add `hi.json` / `mr.json` and register them in LOCALES to switch.
+ * English is the default and the fallback for any missing key; add another `xx.json` and register it in LOCALES.
  */
 type Dict = { [key: string]: string | Dict };
 
-const LOCALES: Record<string, Dict> = { en: en as Dict };
+const LOCALES: Record<string, Dict> = { en: en as Dict, hi: hi as Dict };
 let current = 'en';
 
 export function setLocale(locale: string): void {
