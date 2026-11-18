@@ -245,6 +245,12 @@
     "startMoved": "Start date moved to {date}",
     "startDate": "Start date",
     "startDateHint": "Statistics count from this day. Set it earlier to add past entries.",
+    "reorder": "Reorder",
+    "reorderDone": "Done",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "everyDay": "Every day",
+    "timesPerWeek": "{n}× per week",
     "weekProgress": "This week: {done} of {target}",
     "weekMet": "This week: {done} of {target} · goal met ✓",
     "flexDay": "no entry (any day counts)",
@@ -294,6 +300,8 @@
     "streakCount": "🔥 {n}"
   },
   "food": {
+    "editMeal": "Edit meal",
+    "mealUpdated": "Meal updated",
     "title": "Food",
     "totals": "Daily totals · target {kcal} kcal",
     "autoTag": "(auto)",
@@ -424,6 +432,11 @@
     "disclaimer": "Projections are rough estimates based on your logged weights, not medical advice."
   },
   "profile": {
+    "exportCsv": "Export CSV",
+    "exportCsvHint": "A plain spreadsheet file of your logs (habits, water, weight, meals, supplements, steps). It is not encrypted, so keep it somewhere safe.",
+    "csvSaved": "CSV saved",
+    "language": "Language",
+    "languageSystem": "Phone language",
     "title": "Profile",
     "editTitle": "Edit profile",
     "importTitle": "Import profile",
